@@ -1,0 +1,1662 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bitwarden Vault Dedupe</title>
+
+  <style>
+    :root {
+      --bg: #202632;
+      --panel: #121A27;
+      --accent: #65ABFF;
+      --muted: #9aa4b2;
+      --danger: #FF4D63;
+      --success: #00d084;
+      --urls: #6FA9F1;
+      --text: #eef3f7;
+      font-family: Inter, system-ui;
+      --borders: 1.1px solid rgba(255, 255, 255, 0.1);
+      --highlight-bg: rgba(255, 255, 255, 0.05);
+      --modal-header-footer-bg: rgba(255, 255, 255, 0.03);
+    }
+
+    :root.light-mode {
+      --bg: #f5f5f5;
+      --panel: #ffffff;
+      --accent: #0066cc;
+      --muted: #666666;
+      --danger: #d32f2f;
+      --success: #388e3c;
+      --urls: #0066cc;
+      --text: #1a1a1a;
+      --borders: 1.1px solid rgba(0, 0, 0, 0.1);
+      --highlight-bg: rgba(0, 0, 0, 0.05);
+      --modal-header-footer-bg: rgba(0, 0, 0, 0.03);
+    }
+
+    .no-transitions,
+    .no-transitions * {
+      transition: none !important;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      transition: background-color 0.3s ease, color 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      gap: 10px;
+      flex-grow: 1;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px;
+      background: var(--panel);
+      border-radius: 8px;
+      border: var(--borders);
+      margin-bottom: 10px;
+      min-height: 50px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .logo svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .theme-toggle {
+      background: transparent;
+      border: var(--borders);
+      padding: 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      position: relative; /* To enable stacking the icons on top of each other */
+      /* Adjust transitions to include new properties */
+      transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+      color: var(--accent);
+    }
+
+    .theme-toggle:hover {
+      background-color: rgba(0, 0, 0, 0.1);
+      border-color: var(--accent);
+    }
+
+    .theme-toggle svg {
+      width: 20px;
+      height: 20px;
+      position: absolute; /* To place the icons on top of each other */
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(1);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    /* Hide sun icon in dark mode */
+    #sunIcon {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.5) rotate(-90deg);
+    }
+
+    /* Show sun icon in light mode */
+    :root.light-mode #sunIcon {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1) rotate(0deg);
+    }
+
+    /* Hide moon icon in light mode */
+    :root.light-mode #moonIcon {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.5) rotate(90deg);
+    }
+
+    /* Show moon icon in dark mode */
+    #moonIcon {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1) rotate(0deg);
+    }
+
+    .sidebar {
+      width: 100%;
+      background: var(--panel);
+      padding: 12px;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      border: var(--borders);
+      transition: background-color 0.3s ease;
+    }
+
+    .main {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .table-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      max-height: 60vh;
+      background: var(--panel);
+      border-radius: 8px;
+      padding: 12px;
+      border: var(--borders);
+      transition: background-color 0.3s ease;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: auto;
+    }
+
+    th,
+    td {
+      padding: 8px;
+      border-bottom: var(--borders);
+      font-size: 14px;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      width: 16px;
+      height: 16px;
+      border: 1px solid var(--muted);
+      border-radius: 3px;
+      background-color: transparent;
+      cursor: pointer;
+      position: relative;
+      top: 2px;
+      transition: all 0.2s ease;
+    }
+
+    input[type="checkbox"]:checked {
+      background-color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    input[type="checkbox"]:checked::after {
+      content: '';
+      position: absolute;
+      left: 4px;
+      top: 2px;
+      width: 4px;
+      height: 8px;
+      border: solid;
+      border-color: var(--bg);
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+
+    input[type="checkbox"]:hover {
+      border-color: var(--accent);
+    }
+
+    .entry-row:hover {
+      background-color: rgba(0, 164, 255, 0.1);
+    }
+
+    #vaultTable td:nth-child(4) {
+      white-space: nowrap;
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    th {
+      background: var(--panel);
+      position: sticky;
+      top: 0;
+      transition: background-color 0.3s ease;
+    }
+
+    .urlName {
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .btn {
+      padding: 10px 14px;
+      border-radius: 6px;
+      border: var(--borders);
+      background: transparent;
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn.primary {
+      background: var(--accent);
+      color: var(--bg);
+      border: 0;
+    }
+
+    input,
+    select {
+      padding: 10px;
+      width: 100%;
+      font-size: 15px;
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+
+    :root.light-mode input,
+    :root.light-mode select {
+      border: 1px solid rgba(0, 0, 0, 0.2);
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      opacity: 0;
+      transition: opacity 0.3s ease-in-out;
+    }
+
+    .modal.active {
+      display: flex;
+      opacity: 1;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content {
+      background-color: var(--panel);
+      margin: auto;
+      padding: 0;
+      border-radius: 12px;
+      border: var(--borders);
+      width: 90%;
+      max-width: 600px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      animation: slideIn 0.3s ease-in-out;
+      transition: background-color 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateY(-50px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes slideOut {
+      from {
+        transform: translateY(0);
+        opacity: 1;
+      }
+      to {
+        transform: translateY(-50px);
+        opacity: 0;
+      }
+    }
+
+    .modal.closing .modal-content {
+      animation: slideOut 0.3s ease-in-out forwards;
+    }
+
+    .modal.closing {
+      animation: fadeOut 0.3s ease-in-out forwards;
+    }
+
+    @keyframes fadeOut {
+      from {
+        opacity: 1;
+      }
+      to {
+        opacity: 0;
+      }
+    }
+
+    .success-toast {
+      display: none;
+      position: fixed;
+      z-index: 3000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      opacity: 0;
+      transition: opacity 0.3s ease-in-out;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 40px;
+    }
+
+    .success-toast.active {
+      display: flex;
+      opacity: 1;
+    }
+
+    .success-content {
+      background-color: var(--panel);
+      padding: 32px;
+      border-radius: 12px;
+      border: var(--borders);
+      width: 90%;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      animation: slideIn 0.3s ease-in-out;
+      transition: background-color 0.3s ease;
+    }
+
+    .success-toast.closing .success-content {
+      animation: slideOut 0.3s ease-in-out forwards;
+    }
+
+    .checkmark-circle {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 16px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, rgba(0, 208, 132, 0.2), rgba(0, 208, 132, 0.1));
+      border: 2px solid var(--success);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .checkmark {
+      width: 40px;
+      height: 40px;
+      position: relative;
+    }
+
+    .checkmark::after {
+      content: '';
+      position: absolute;
+      width: 10px;
+      height: 20px;
+      border: solid var(--success);
+      border-width: 0 3px 3px 0;
+      transform: rotate(45deg);
+      left: 12px;
+      top: 5px;
+      animation: checkmarkDraw 0.4s ease-in-out 0.2s forwards;
+      opacity: 0;
+    }
+
+    @keyframes checkmarkDraw {
+      0% {
+        width: 0;
+        height: 0;
+        left: 12px;
+        top: 12px;
+        opacity: 1;
+      }
+      50% {
+        width: 10px;
+        height: 0;
+        left: 12px;
+        top: 12px;
+        opacity: 1;
+      }
+      100% {
+        width: 10px;
+        height: 20px;
+        left: 12px;
+        top: 5px;
+        opacity: 1;
+      }
+    }
+
+    .success-message {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--success);
+      margin-bottom: 8px;
+    }
+
+    .success-description {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 24px;
+      background-color: var(--modal-header-footer-bg);
+      border-bottom: 1px solid var(--borders);
+      margin-bottom: 0;
+      padding-bottom: 16px;
+      transition: border-color 0.3s ease, background-color 0.3s ease;
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+    }
+
+    .modal-header h2 {
+      margin: 0;
+      color: var(--text);
+      font-size: 20px;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 24px;
+      cursor: pointer;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .modal-close:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+      color: var(--text);
+    }
+
+    .modal-body {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 24px;
+    }
+
+    .modal-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .modal-field-label {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .modal-field-value {
+      font-size: 14px;
+      color: var(--text);
+      word-break: break-word;
+      padding: 8px 12px;
+      background-color: rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+
+    :root.light-mode .modal-field-value {
+      background-color: rgba(0, 0, 0, 0.05);
+      border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    .modal-footer {
+      display: flex;
+      gap: 10px;
+      padding: 16px 24px;
+      background-color: var(--modal-header-footer-bg);
+      border-top: 1px solid var(--borders);
+      margin-top: 0;
+      transition: border-color 0.3s ease, background-color 0.3s ease;
+      justify-content: flex-end;
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+    }
+
+    .modal-btn {
+      flex: 0;
+      padding: 10px 14px;
+      border-radius: 6px;
+      border: var(--borders);
+      background: transparent;
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .modal-btn:hover {
+      background-color: rgba(0, 164, 255, 0.1);
+      border-color: var(--accent);
+    }
+
+    .modal-btn.primary {
+      background: var(--accent);
+      color: var(--bg);
+      border: 0;
+    }
+
+    .modal-btn.primary:hover {
+      opacity: 0.9;
+    }
+
+    .modal-btn.delete {
+      color: var(--danger);
+      border-color: rgba(255, 85, 102, 0.3);
+    }
+
+    .modal-btn.delete:hover {
+      background-color: rgba(255, 85, 102, 0.1);
+      border-color: var(--danger);
+    }
+
+    #editSave {
+      background: var(--accent);
+      color: var(--bg);
+      border: 0;
+    }
+
+    #editSave:hover {
+      background: var(--accent);
+      opacity: 0.9;
+    }
+
+    .confirm-dialog {
+      display: none;
+      position: fixed;
+      z-index: 2000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      opacity: 0;
+      transition: opacity 0.3s ease-in-out;
+    }
+
+    .confirm-dialog.active {
+      display: flex;
+      opacity: 1;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .confirm-content {
+      background-color: var(--panel);
+      margin: auto;
+      padding: 0;
+      border-radius: 12px;
+      border: var(--borders);
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      animation: slideIn 0.3s ease-in-out;
+      transition: background-color 0.3s ease;
+    }
+
+    .confirm-header {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--danger);
+      margin-bottom: 12px;
+    }
+
+    .confirm-message {
+      font-size: 14px;
+      color: var(--text);
+      margin-bottom: 24px;
+      line-height: 1.5;
+      padding: 0 24px;
+    }
+
+    .confirm-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      padding: 16px 24px;
+      background-color: var(--modal-header-footer-bg);
+      border-top: 1px solid var(--borders);
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+    }
+
+    .confirm-btn {
+      flex: 0;
+      padding: 10px 14px;
+      border-radius: 6px;
+      border: var(--borders);
+      background: transparent;
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .confirm-btn:hover {
+      background-color: rgba(0, 164, 255, 0.1);
+      border-color: var(--accent);
+    }
+
+    .confirm-btn.danger {
+      color: var(--danger);
+      border-color: rgba(255, 85, 102, 0.3);
+    }
+
+    .confirm-btn.danger:hover {
+      background-color: rgba(255, 85, 102, 0.1);
+      border-color: var(--danger);
+    }
+
+    .edit-form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .form-input {
+      padding: 10px;
+      font-size: 14px;
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--text);
+      border: var(--borders);
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(0, 164, 255, 0.2);
+    }
+
+    .form-textarea {
+      padding: 10px;
+      font-size: 14px;
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--text);
+      border: var(--borders);
+      font-family: inherit;
+      resize: vertical;
+      min-height: 80px;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .form-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(0, 164, 255, 0.2);
+    }
+
+    .edit-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+      justify-content: flex-end;
+    }
+
+    .edit-buttons button {
+      flex: 0;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 16px;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: auto;
+    }
+
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* New URI option styles (Bitwarden Style) */
+    .option-card-group {
+      padding: 0;
+      border: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0; /* Remove spacing between options */
+    }
+
+    .option-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0; /* Simple padding */
+      cursor: pointer;
+      border-radius: 0;
+      margin-bottom: 0;
+      background-color: transparent; /* Remove background */
+      border: none; /* Remove borders */
+      transition: none; /* Remove transitions */
+    }
+
+    .option-card:hover {
+      background-color: var(--highlight-bg); /* Light highlight on hover */
+      border-color: transparent;
+    }
+
+    /* Use default radio buttons with some adjustments */
+    .option-card input[type="radio"] {
+      appearance: radio; /* Revert to default radio style */
+      -webkit-appearance: radio;
+      -moz-appearance: radio;
+      width: 16px;
+      height: 16px;
+      border: 1px solid var(--muted); /* Can be removed if the default is good */
+      border-radius: 50%;
+      transition: none; /* Remove transitions */
+      flex-shrink: 0;
+    }
+
+    .option-card input[type="radio"]:checked {
+      border-color: var(--accent);
+    }
+
+    @media (min-width:850px) {
+      .app {
+        flex-direction: row;
+      }
+      .sidebar {
+        width: 260px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="header">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+      </svg>
+      Bitwarden Dedupe
+    </div>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+      <svg id="sunIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="5"></circle>
+        <line x1="12" y1="1" x2="12" y2="3"></line>
+        <line x1="12" y1="21" x2="12" y2="23"></line>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+        <line x1="1" y1="12" x2="3" y2="12"></line>
+        <line x1="21" y1="12" x2="23" y2="12"></line>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+      </svg>
+      <svg id="moonIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+      </svg>
+    </button>
+  </div>
+
+  <div class="app">
+
+    <div class="sidebar">
+
+      <label class="btn">
+        Upload JSON
+        <input type="file" id="fileInput" accept=".json, .csv" style="display:none;">
+      </label>
+
+      <div id="fileName" style="font-size:13px;color:var(--muted);">No file loaded</div>
+
+      <select id="criteria">
+        <option value="name+username+uri">Name + Username + URI</option>
+        <option value="name+uri">Name + URI</option>
+        <option value="full">Exact JSON Match</option>
+      </select>
+
+      <button class="btn" id="optionsBtn">Duplicate Detection Options</button>
+
+      <button class="btn primary" id="detectBtn" disabled>Detect duplicates</button>
+      <button class="btn" style="border-color:var(--danger);color:var(--danger);" id="removeSelectedBtn" disabled>Remove
+        Selected</button>
+      <button class="btn primary" id="exportBtn" disabled>Export Cleaned Vault</button>
+      <button class="btn" style="border-color:var(--danger);color:var(--danger); display:none;" id="logoutBtn">Logout</button>
+
+    </div>
+
+    <div class="main">
+
+      <div style="display: flex; gap: 20px; align-items: center; padding: 0 5px;">
+        <div style="font-size:14px; color:var(--muted);">
+          Entries: <span id="entryCount" style="color:var(--success); font-weight:600;">0</span>
+        </div>
+        <div style="font-size:14px; color:var(--muted);">
+          Duplicates: <span id="dupCount" style="color:var(--danger); font-weight:600;">0</span>
+        </div>
+      </div>
+      <input id="search" placeholder="Search entries…">
+
+      <div class="table-wrapper">
+        <table id="vaultTable"></table>
+      </div>
+
+    </div>
+
+  </div>
+
+  <div class="footer">
+    Made with <span style="color: var(--danger);">❤</span> by <a href="https://github.com/melsiir" target="_blank">melsiir</a>
+  </div>
+
+  <!-- Modals -->
+  <div id="entryModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle">Entry Details</h2>
+        <button class="modal-close" id="modalClose">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer">
+        <button class="modal-btn" id="modalEditBtn">Edit Entry</button>
+        <button class="modal-btn delete" id="modalDeleteBtn">Delete Entry</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirmation Dialog -->
+  <div id="confirmDialog" class="confirm-dialog">
+    <div class="confirm-content">
+      <div class="modal-header">
+        <h2 id="confirmHeader">Confirm Action</h2>
+        <button class="modal-close" id="confirmClose">&times;</button>
+      </div>
+      <div class="confirm-message" id="confirmMessage">Are you sure?</div>
+      <div class="confirm-buttons">
+        <button class="confirm-btn" id="confirmCancel">Cancel</button>
+        <button class="confirm-btn primary" id="confirmYes">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div id="editModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="editTitle">Edit Entry</h2>
+        <button class="modal-close" id="editClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form class="edit-form" id="editForm">
+          <div class="form-group">
+            <label class="form-label">Name</label>
+            <input type="text" id="editName" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Username</label>
+            <input type="text" id="editUsername" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password</label>
+            <input type="password" id="editPassword" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">URI</label>
+            <input type="text" id="editUri" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Notes</label>
+            <textarea id="editNotes" class="form-textarea"></textarea>
+          </div>
+          <div class="edit-buttons">
+            <button type="button" class="modal-btn" id="editCancel">Cancel</button>
+            <button type="button" class="modal-btn primary" id="editSave">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Options Modal -->
+  <div id="optionsModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="optionsTitle">Duplicate Detection Options</h2>
+        <button class="modal-close" id="optionsClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">URI Matching Mode</label>
+          <div class="option-card-group">
+            <label class="option-card">
+              <input type="radio" name="uriMode" value="full" id="uriModeFull">
+              Full URI (Default)
+            </label>
+            <label class="option-card">
+              <input type="radio" name="uriMode" value="hostname" id="uriModeHostname">
+              Hostname Only
+            </label>
+            <label class="option-card">
+              <input type="radio" name="uriMode" value="mainDomain" id="uriModeMainDomain">
+              Main Domain Only
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn" id="optionsExit">Cancel</button>
+        <button class="modal-btn primary" id="optionsSave">Save Options</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Success Toast -->
+  <div id="successToast" class="success-toast">
+    <div class="success-content">
+      <div class="checkmark-circle">
+        <div class="checkmark"></div>
+      </div>
+      <div class="success-message" id="successMessage">Success!</div>
+      <div class="success-description" id="successDescription">Action completed successfully</div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY_VAULT = "bitwardenVault";
+    const STORAGE_KEY_ITEMS = "bitwardenItems";
+    const STORAGE_KEY_DUPLICATES = "bitwardenDuplicates";
+    const STORAGE_KEY_CRITERIA = "bitwardenCriteria";
+    const STORAGE_KEY_FILENAME = "bitwardenFileName";
+    const STORAGE_KEY_URIMODE = "bitwardenUriMode";
+    const STORAGE_KEY_THEME = "bitwardenTheme";
+
+    const vaultStorage = sessionStorage;
+    const themeStorage = localStorage;
+
+    let vault = null;
+    let items = [];
+    let filtered = [];
+    let duplicates = new Set();
+    let currentOpenedItemId = null;
+    let editingItemId = null;
+    let uriMode = vaultStorage.getItem(STORAGE_KEY_URIMODE) || 'full';
+    let isDarkMode = themeStorage.getItem(STORAGE_KEY_THEME) !== 'light';
+
+    applyTheme();
+
+    function applyTheme() {
+      const html = document.documentElement;
+      
+      if (isDarkMode) {
+        html.classList.remove('light-mode');
+      } else {
+        html.classList.add('light-mode');
+      }
+
+      themeStorage.setItem(STORAGE_KEY_THEME, isDarkMode ? 'dark' : 'light');
+    }
+
+    function toggleTheme() {
+      isDarkMode = !isDarkMode;
+      
+      // If there are loaded elements, temporarily disable transitions
+      if (items.length > 0) {
+        const html = document.documentElement;
+        html.classList.add('no-transitions');
+        
+        // Apply the theme
+        applyTheme();
+
+        // Remove the disable after the change is complete
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            html.classList.remove('no-transitions');
+          });
+        });
+      } else {
+        // If there are no elements, apply the theme smoothly (with transition)
+        applyTheme();
+      }
+    }
+
+    document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+
+    function renderTable() {
+      const table = document.getElementById("vaultTable");
+
+      if (!filtered.length) {
+        table.innerHTML = "<tr><td style='padding:20px;color:gray;'>No entries</td></tr>";
+        return;
+      }
+
+      table.innerHTML = `
+    <tr>
+      <th></th>
+      <th>Name</th>
+      <th>Username</th>
+      <th>URI</th>
+    </tr>
+  `;
+
+      let rows = "";
+
+      for (const item of filtered) {
+        const login = item.login || {};
+        const uri = login.uris && login.uris.length ? login.uris[0].uri : "";
+
+        rows += `
+    <tr class="entry-row" data-id="${item.id}" style="cursor: pointer;">
+      <td><input type="checkbox" data-id="${item.id}" ${duplicates.has(item.id) ? "checked" : ""}></td>
+      <td class="urlName">${item.name || ""}</td>
+      <td>${login.username || ""}</td>
+      <td>${uri || ""}</td>
+    </tr>
+  `;
+      }
+      table.innerHTML += rows;
+      animateCount("entryCount", items.length);
+      animateCount("dupCount", duplicates.size);
+      updateButtonStates();
+      attachRowClickListeners();
+    }
+
+    if (typeof crypto.randomUUID !== 'function') {
+      crypto.randomUUID = function () {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+          var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+    }
+
+    function animateCount(elementId, finalValue) {
+      const element = document.getElementById(elementId);
+      if (!element) return;
+
+      const startValue = parseInt(element.textContent) || 0;
+      const duration = 500;
+      let startTime = null;
+
+      const step = (timestamp) => {
+        if (!startTime) startTime = timestamp;
+        const progress = timestamp - startTime;
+        const percentage = Math.min(progress / duration, 1);
+        const currentValue = Math.floor(percentage * (finalValue - startValue) + startValue);
+
+        element.textContent = currentValue;
+
+        if (percentage < 1) {
+          window.requestAnimationFrame(step);
+        } else {
+          element.textContent = finalValue;
+        }
+      };
+
+      window.requestAnimationFrame(step);
+    }
+
+    function saveState() {
+      if (vault && items.length > 0) {
+        vaultStorage.setItem(STORAGE_KEY_VAULT, JSON.stringify(vault));
+        vaultStorage.setItem(STORAGE_KEY_ITEMS, JSON.stringify(items));
+        vaultStorage.setItem(STORAGE_KEY_DUPLICATES, JSON.stringify(Array.from(duplicates)));
+        vaultStorage.setItem(STORAGE_KEY_CRITERIA, document.getElementById("criteria").value);
+        vaultStorage.setItem(STORAGE_KEY_FILENAME, document.getElementById("fileName").textContent);
+        vaultStorage.setItem(STORAGE_KEY_URIMODE, uriMode);
+      }
+    }
+
+    function loadState() {
+      const savedVault = vaultStorage.getItem(STORAGE_KEY_VAULT);
+      const savedItems = vaultStorage.getItem(STORAGE_KEY_ITEMS);
+      const savedDuplicates = vaultStorage.getItem(STORAGE_KEY_DUPLICATES);
+      const savedCriteria = vaultStorage.getItem(STORAGE_KEY_CRITERIA);
+      const savedFileName = vaultStorage.getItem(STORAGE_KEY_FILENAME);
+      const savedUriMode = vaultStorage.getItem(STORAGE_KEY_URIMODE);
+
+      if (savedVault && savedItems) {
+        try {
+          vault = JSON.parse(savedVault);
+          items = JSON.parse(savedItems);
+          filtered = [...items];
+          duplicates = new Set(JSON.parse(savedDuplicates || "[]"));
+
+          if (savedCriteria) {
+            document.getElementById("criteria").value = savedCriteria;
+          }
+          if (savedFileName) {
+            document.getElementById("fileName").textContent = savedFileName;
+          }
+          if (savedUriMode) {
+            uriMode = savedUriMode;
+          }
+
+          renderTable();
+          updateButtonStates();
+          console.log("State restored from sessionStorage.");
+        } catch (e) {
+          console.error("Failed to restore state from sessionStorage:", e);
+          vaultStorage.clear();
+        }
+      }
+    }
+
+    function updateButtonStates() {
+      const isLoaded = items.length > 0;
+      document.getElementById("detectBtn").disabled = !isLoaded;
+      document.getElementById("removeSelectedBtn").disabled = !isLoaded;
+      document.getElementById("exportBtn").disabled = !isLoaded;
+      document.getElementById("logoutBtn").style.display = isLoaded ? 'block' : 'none';
+    }
+
+    function attachRowClickListeners() {
+      const rows = document.querySelectorAll(".entry-row");
+      rows.forEach(row => {
+        row.addEventListener("click", (e) => {
+          if (e.target.type === "checkbox") return;
+          const itemId = row.dataset.id;
+          const item = items.find(i => i.id === itemId);
+          if (item) showModal(item);
+        });
+      });
+    }
+
+    function showModal(item) {
+      const modal = document.getElementById("entryModal");
+      const modalTitle = document.getElementById("modalTitle");
+      const modalBody = document.getElementById("modalBody");
+
+      modalTitle.textContent = item.name || "Entry Details";
+      currentOpenedItemId = item.id;
+
+      let fieldsHTML = "";
+
+      const displayFields = [
+        {key: "id", label: "ID"},
+        {key: "name", label: "Name"},
+        {key: "type", label: "Type"},
+        {key: "organizationId: null", label: "Organization ID"},
+        {key: "folderId: null", label: "Folder ID"},
+        {key: "favorite: false", label: "Favorite"},
+        {key: "notes", label: "Notes"}
+      ];
+
+      if (item.login) {
+        displayFields.push(
+          {key: "login.username", label: "Username", parent: "login"},
+          {key: "login.password", label: "Password", parent: "login"},
+          {key: "login.totp", label: "TOTP", parent: "login"}
+        );
+
+        if (item.login.uris && item.login.uris.length > 0) {
+          item.login.uris.forEach((uri, idx) => {
+            fieldsHTML += `
+          <div class="modal-field">
+            <div class="modal-field-label">URI ${idx + 1}</div>
+            <div class="modal-field-value">${uri.uri || ""}</div>
+          </div>
+        `;
+          });
+        }
+      }
+
+      displayFields.forEach(field => {
+        let value;
+        if (field.parent) {
+          value = item[field.parent] ? item[field.parent][field.key.split(".")[1]] : null;
+        } else {
+          value = item[field.key];
+        }
+
+        if (value !== null && value !== undefined && value !== "") {
+          const displayValue = typeof value === "object" ? JSON.stringify(value, null, 2) : String(value);
+          fieldsHTML += `
+        <div class="modal-field">
+          <div class="modal-field-label">${field.label}</div>
+          <div class="modal-field-value">${displayValue}</div>
+        </div>
+      `;
+        }
+      });
+
+      if (item.fields && item.fields.length > 0) {
+        fieldsHTML += `
+      <div class="modal-field">
+        <div class="modal-field-label">Custom Fields</div>
+        <div class="modal-field-value">${JSON.stringify(item.fields, null, 2)}</div>
+      </div>
+    `;
+      }
+
+      if (item.attachments && item.attachments.length > 0) {
+        fieldsHTML += `
+      <div class="modal-field">
+        <div class="modal-field-label">Attachments</div>
+        <div class="modal-field-value">${JSON.stringify(item.attachments, null, 2)}</div>
+      </div>
+    `;
+      }
+
+      modalBody.innerHTML = fieldsHTML || "<p>No additional data</p>";
+      modal.classList.add("active");
+    }
+
+    function closeModal() {
+      const modal = document.getElementById("entryModal");
+      modal.classList.add("closing");
+      setTimeout(() => {
+        modal.classList.remove("active", "closing");
+        currentOpenedItemId = null;
+      }, 300);
+    }
+
+    function showSuccessToast(message, description, callback = null) {
+      const toast = document.getElementById("successToast");
+      document.getElementById("successMessage").textContent = message;
+      document.getElementById("successDescription").textContent = description;
+      toast.classList.add("active");
+
+      setTimeout(() => {
+        toast.classList.add("closing");
+        setTimeout(() => {
+          toast.classList.remove("active", "closing");
+          if (callback) {
+            callback();
+          }
+        }, 300);
+      }, 2000);
+    }
+
+    function deleteEntry() {
+      if (!currentOpenedItemId) return;
+      showConfirmDialog("Delete Entry", "Are you sure you want to delete this entry? This action cannot be undone.", performDelete);
+    }
+
+    function performDelete() {
+      items = items.filter(item => item.id !== currentOpenedItemId);
+      filtered = filtered.filter(item => item.id !== currentOpenedItemId);
+      duplicates.delete(currentOpenedItemId);
+      closeModal();
+      saveState();
+      renderTable();
+      showSuccessToast("Entry Deleted", "The entry has been successfully deleted");
+    }
+
+    function editEntry() {
+      if (!currentOpenedItemId) return;
+      const item = items.find(i => i.id === currentOpenedItemId);
+      if (!item) return;
+      editingItemId = currentOpenedItemId;
+      document.getElementById("editName").value = item.name || "";
+      const login = item.login || {};
+      document.getElementById("editUsername").value = login.username || "";
+      document.getElementById("editPassword").value = login.password || "";
+      const uri = login.uris && item.login.uris.length ? item.login.uris[0].uri : "";
+      document.getElementById("editUri").value = uri || "";
+      document.getElementById("editNotes").value = item.notes || "";
+      closeModal();
+      document.getElementById("editModal").classList.add("active");
+    }
+
+    function showConfirmDialog(header, message, callback) {
+      document.getElementById("confirmHeader").textContent = header;
+      document.getElementById("confirmMessage").textContent = message;
+      const dialog = document.getElementById("confirmDialog");
+      const yesBtn = document.getElementById("confirmYes");
+      const cancelBtn = document.getElementById("confirmCancel");
+      const newYes = yesBtn.cloneNode(true);
+      const newCancel = cancelBtn.cloneNode(true);
+      yesBtn.parentNode.replaceChild(newYes, yesBtn);
+      cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+      document.getElementById("confirmYes").addEventListener("click", () => {
+        dialog.classList.remove("active");
+        callback();
+      });
+      document.getElementById("confirmCancel").addEventListener("click", () => {
+        dialog.classList.remove("active");
+      });
+      dialog.classList.add("active");
+    }
+
+    function saveEdit() {
+      if (!editingItemId) return;
+      const item = items.find(i => i.id === editingItemId);
+      if (!item) return;
+      item.name = document.getElementById("editName").value;
+      if (!item.login) item.login = {};
+      item.login.username = document.getElementById("editUsername").value;
+      item.login.password = document.getElementById("editPassword").value;
+      const newUri = document.getElementById("editUri").value;
+      if (newUri) {
+        if (!item.login.uris) item.login.uris = [];
+        if (item.login.uris.length === 0) {
+          item.login.uris.push({uri: newUri, match: null});
+        } else {
+          item.login.uris[0].uri = newUri;
+        }
+      }
+      item.notes = document.getElementById("editNotes").value;
+      document.getElementById("editModal").classList.remove("active");
+      editingItemId = null;
+      saveState();
+      renderTable();
+      showSuccessToast("Entry Updated", "The entry has been successfully updated");
+    }
+
+    function parseGoogleCsv(csvText) {
+      const lines = csvText.split('\n').filter(line => line.trim());
+      const headers = lines[0].split(',').map(h => h.trim());
+      const result = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim());
+        const name = values[0] || "";
+        const url = values[1] || "";
+        const username = values[2] || "";
+        const password = values[3] || "";
+        const note = values[4] || "";
+
+        result.push({
+          id: crypto.randomUUID(),
+          organizationId: null,
+          folderId: null,
+          type: 1,
+          reprompt: 0,
+          name: name,
+          notes: note,
+          favorite: false,
+          login: {
+            username: username,
+            password: password,
+            totp: null,
+            uris: url ? [{uri: url, match: null}] : []
+          }
+        });
+      }
+
+      return result;
+    }
+
+    function logout() {
+      vaultStorage.clear();
+      vault = null;
+      items = [];
+      filtered = [];
+      duplicates.clear();
+      currentOpenedItemId = null;
+      document.getElementById("fileName").textContent = "No file loaded";
+      document.getElementById("entryCount").textContent = "0";
+      document.getElementById("dupCount").textContent = "0";
+      renderTable();
+      updateButtonStates();
+      showSuccessToast("Logged Out", "You have been successfully logged out");
+    }
+
+    function applySearch() {
+      const q = document.getElementById("search").value.toLowerCase();
+
+      filtered = items.filter((item) => {
+        const login = item.login || {};
+        const uri = login.uris && login.uris.length ? login.uris[0].uri : "";
+        return (
+          (item.name || "").toLowerCase().includes(q) ||
+          (login.username || "").toLowerCase().includes(q) ||
+          (uri || "").toLowerCase().includes(q)
+        );
+      });
+
+      renderTable();
+      saveState();
+    }
+
+    function hashItem(item, mode) {
+      const login = item.login || {};
+      const uri = login.uris && login.uris.length ? login.uris[0].uri : "";
+      const uriKey = getUriKey(uri, uriMode);
+      const username = login.username || "";
+      const name = item.name || "";
+
+      if (mode === "name+username+uri") return name + "|" + username + "|" + uriKey;
+      if (mode === "name+uri") return name + "|" + uriKey;
+      if (mode === "full") return JSON.stringify(item);
+
+      return "";
+    }
+
+    function getUriKey(uri, mode) {
+      if (!uri) return "";
+      try {
+        const url = new URL(uri);
+        let hostname = url.hostname;
+
+        if (mode === 'hostname') {
+          return hostname;
+        }
+
+        if (mode === 'mainDomain') {
+          const parts = hostname.split('.');
+          if (parts.length > 2) {
+            return parts.slice(-2).join('.');
+          }
+          return hostname;
+        }
+
+        return uri;
+      } catch (e) {
+        return uri;
+      }
+    }
+
+    function detectDuplicates() {
+      duplicates.clear();
+      const mode = document.getElementById("criteria").value;
+
+      const map = new Map();
+
+      for (const item of items) {
+        const key = hashItem(item, mode);
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(item);
+      }
+
+      for (const [key, list] of map.entries()) {
+        if (list.length > 1) {
+          for (let i = 1; i < list.length; i++) {
+            duplicates.add(list[i].id);
+          }
+        }
+      }
+
+      renderTable();
+      saveState();
+    }
+
+    function removeSelected() {
+      const checkboxes = document.querySelectorAll("input[type=checkbox][data-id]");
+      const idsToRemove = new Set();
+
+      checkboxes.forEach(cb => {if (cb.checked) idsToRemove.add(cb.dataset.id);});
+
+      if (idsToRemove.size === 0) return;
+
+      items = items.filter(x => !idsToRemove.has(x.id));
+      filtered = [...items];
+      duplicates.clear();
+      saveState();
+      updateButtonStates();
+      renderTable();
+      showSuccessToast("Duplicates Removed", idsToRemove.size + " duplicate entry(ies) have been removed");
+    }
+
+    function exportVault() {
+      const cleaned = {...vault, items};
+
+      const blob = new Blob([JSON.stringify(cleaned, null, 2)], {type: "application/json"});
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "bitwarden-cleaned.json";
+      a.click();
+      vaultStorage.clear();
+    }
+
+    document.getElementById("fileInput").addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      document.getElementById("fileName").textContent = file.name;
+
+      const text = await file.text();
+
+      if (file.name.toLowerCase().endsWith('.json')) {
+        try {
+          vault = JSON.parse(text);
+          items = vault.items || [];
+        } catch (e) {
+          alert("Error parsing JSON file. Please ensure it is a valid Bitwarden JSON export.");
+          return;
+        }
+      } else if (file.name.toLowerCase().endsWith('.csv')) {
+        items = parseGoogleCsv(text);
+        vault = {
+          "encrypted": false,
+          "folders": [],
+          "items": items,
+          "version": 3
+        };
+      } else {
+        alert("Unsupported file type. Please upload a Bitwarden JSON or Google CSV file.");
+        return;
+      }
+
+      filtered = [...items];
+
+      duplicates.clear();
+      renderTable();
+      saveState();
+      updateButtonStates();
+
+    });
+
+
+    document.getElementById("search").addEventListener("input", applySearch);
+    document.getElementById("detectBtn").addEventListener("click", detectDuplicates);
+    document.getElementById("removeSelectedBtn").addEventListener("click", removeSelected);
+    document.getElementById("exportBtn").addEventListener("click", exportVault);
+    document.getElementById("criteria").addEventListener("change", saveState);
+
+    document.getElementById("modalClose").addEventListener("click", closeModal);
+    document.getElementById("entryModal").addEventListener("click", (e) => {
+      if (e.target.id === "entryModal") closeModal();
+    });
+    document.getElementById("modalEditBtn").addEventListener("click", editEntry);
+    document.getElementById("modalDeleteBtn").addEventListener("click", deleteEntry);
+
+    document.getElementById("editClose").addEventListener("click", () => {
+      document.getElementById("editModal").classList.remove("active");
+    });
+    document.getElementById("editModal").addEventListener("click", (e) => {
+      if (e.target.id === "editModal") document.getElementById("editModal").classList.remove("active");
+    });
+    document.getElementById("editCancel").addEventListener("click", () => {
+      document.getElementById("editModal").classList.remove("active");
+    });
+
+    document.getElementById("editSave").addEventListener("click", saveEdit);
+
+    document.getElementById("logoutBtn").addEventListener("click", logout);
+
+    // Options Modal
+    document.getElementById("optionsBtn").addEventListener("click", () => {
+      document.getElementById("uriModeFull").checked = uriMode === 'full';
+      document.getElementById("uriModeHostname").checked = uriMode === 'hostname';
+      document.getElementById("uriModeMainDomain").checked = uriMode === 'mainDomain';
+      document.getElementById("optionsModal").classList.add("active");
+    });
+
+    document.getElementById("optionsClose").addEventListener("click", () => {
+      document.getElementById("optionsModal").classList.remove("active");
+    });
+
+    document.getElementById("optionsExit").addEventListener("click", () => {
+      document.getElementById("optionsModal").classList.remove("active");
+    });
+
+    document.getElementById("optionsSave").addEventListener("click", () => {
+      uriMode = document.querySelector('input[name="uriMode"]:checked').value;
+      saveState();
+      document.getElementById("optionsModal").classList.remove("active");
+    });
+
+    document.getElementById("optionsModal").addEventListener("click", (e) => {
+      if (e.target.id === "optionsModal") document.getElementById("optionsModal").classList.remove("active");
+    });
+
+    loadState();
+  </script>
+
+</body>
+
+</html>
