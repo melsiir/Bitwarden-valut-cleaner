@@ -1,0 +1,2359 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bitwarden Vault Dedupe</title>
+  <style>
+    :root {
+      --bg: #202632;
+      --panel: #121A27;
+      --accent: #65ABFF;
+      --muted: #9aa4b2;
+      --danger: #FF4D63;
+      --success: #00d084;
+      --urls: #6FA9F1;
+      --text: #eef3f7;
+      font-family: Inter, system-ui;
+      --borders: 1.1px solid rgba(255, 255, 255, 0.1);
+      --highlight-bg: rgba(255, 255, 255, 0.05);
+      --modal-header-footer-bg: rgba(255, 255, 255, 0.03);
+    }
+
+    :root.light-mode {
+      --bg: #f5f5f5;
+      --panel: #ffffff;
+      --accent: #0066cc;
+      --muted: #666666;
+      --danger: #d32f2f;
+      --success: #388e3c;
+      --urls: #0066cc;
+      --text: #1a1a1a;
+      --borders: 1.1px solid rgba(0, 0, 0, 0.1);
+      --borders-on-gray: .08rem solid rgba(0, 0, 0, 0.1);
+      --highlight-bg: rgba(0, 0, 0, 0.05);
+      --modal-header-footer-bg: #f8f9fa;
+    }
+
+    .no-transitions,
+    .no-transitions * {
+      transition: none !important;
+    }
+
+    *,
+    :after,
+    :before {
+      box-sizing: border-box;
+      border: 0 solid;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      transition: background-color 0.3s ease, color 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      gap: 10px;
+      flex-grow: 1;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px;
+      background: var(--panel);
+      border-radius: 8px;
+      border: var(--borders);
+      margin-bottom: 10px;
+      min-height: 50px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .logo svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .theme-toggle {
+      background: transparent;
+      border: var(--borders);
+      padding: 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      position: relative;
+      transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+      color: var(--accent);
+    }
+
+    .theme-toggle:hover {
+      background-color: rgba(0, 0, 0, 0.1);
+      border-color: var(--accent);
+    }
+
+    .theme-toggle svg {
+      width: 20px;
+      height: 20px;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(1);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    #sunIcon {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.5) rotate(-90deg);
+    }
+
+    :root.light-mode #sunIcon {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1) rotate(0deg);
+    }
+
+    :root.light-mode #moonIcon {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.5) rotate(90deg);
+    }
+
+    #moonIcon {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1) rotate(0deg);
+    }
+
+    .sidebar {
+      width: 100%;
+      background: var(--panel);
+      padding: 12px;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      border: var(--borders);
+      transition: background-color 0.3s ease;
+    }
+
+    .main {
+      min-width: 0;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .table-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      max-height: 60vh;
+      background: var(--panel);
+      border-radius: 8px;
+      padding: 12px;
+      border: var(--borders);
+      transition: background-color 0.3s ease;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: auto;
+    }
+
+    th,
+    td {
+      padding: 8px;
+      border-bottom: var(--borders);
+      font-size: 14px;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      width: 16px;
+      height: 16px;
+      border: 1px solid var(--muted);
+      border-radius: 3px;
+      background-color: transparent;
+      cursor: pointer;
+      position: relative;
+      top: 2px;
+      transition: all 0.2s ease;
+    }
+
+    input[type="checkbox"]:checked {
+      background-color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    input[type="checkbox"]:checked::after {
+      content: '';
+      position: absolute;
+      left: 4px;
+      top: 2px;
+      width: 4px;
+      height: 8px;
+      border: solid;
+      border-color: var(--bg);
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+
+    input[type="checkbox"]:hover {
+      border-color: var(--accent);
+    }
+
+    .entry-row:hover {
+      background-color: rgba(0, 164, 255, 0.1);
+    }
+
+    #vaultTable td:nth-child(4) {
+      white-space: nowrap;
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    th {
+      background: var(--panel);
+      position: sticky;
+      top: 0;
+      transition: background-color 0.3s ease;
+    }
+
+    .urlName {
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .btn {
+      padding: 10px 14px;
+      border-radius: 6px;
+      border: var(--borders);
+      background: transparent;
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn.primary {
+      background: var(--accent);
+      color: var(--bg);
+      border: 0;
+    }
+
+    input,
+    select {
+      padding: 10px;
+      width: 100%;
+      font-size: 15px;
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+
+    :root.light-mode input,
+    :root.light-mode select {
+      border: 1px solid rgba(0, 0, 0, 0.2);
+    }
+
+    input[type="range"] {
+      border: none;
+      padding: 0;
+      background: transparent;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      opacity: 0;
+      transition: opacity 0.3s ease-in-out;
+    }
+
+    .modal.active {
+      display: flex;
+      opacity: 1;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content {
+      background-color: var(--panel);
+      margin: auto;
+      padding: 0;
+      border-radius: 12px;
+      border: var(--borders);
+      width: 90%;
+      max-width: 600px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      animation: slideIn 0.3s ease-in-out;
+      transition: background-color 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateY(-50px);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes slideOut {
+      from {
+        transform: translateY(0);
+        opacity: 1;
+      }
+
+      to {
+        transform: translateY(-50px);
+        opacity: 0;
+      }
+    }
+
+    .modal.closing .modal-content {
+      animation: slideOut 0.3s ease-in-out forwards;
+    }
+
+    .modal.closing {
+      animation: fadeOut 0.3s ease-in-out forwards;
+    }
+
+    @keyframes fadeOut {
+      from {
+        opacity: 1;
+      }
+
+      to {
+        opacity: 0;
+      }
+    }
+
+    .success-toast {
+      display: none;
+      position: fixed;
+      z-index: 3000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      opacity: 0;
+      transition: opacity 0.3s ease-in-out;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 40px;
+    }
+
+    .success-toast.active {
+      display: flex;
+      opacity: 1;
+    }
+
+    .success-content {
+      background-color: var(--panel);
+      padding: 32px;
+      border-radius: 12px;
+      border: var(--borders);
+      width: 90%;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      animation: slideIn 0.3s ease-in-out;
+      transition: background-color 0.3s ease;
+    }
+
+    .success-toast.closing .success-content {
+      animation: slideOut 0.3s ease-in-out forwards;
+    }
+
+    .checkmark-circle {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 16px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, rgba(0, 208, 132, 0.2), rgba(0, 208, 132, 0.1));
+      border: 2px solid var(--success);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .checkmark {
+      width: 40px;
+      height: 40px;
+      position: relative;
+    }
+
+    .checkmark::after {
+      content: '';
+      position: absolute;
+      width: 10px;
+      height: 20px;
+      border: solid var(--success);
+      border-width: 0 3px 3px 0;
+      transform: rotate(45deg);
+      left: 12px;
+      top: 5px;
+      animation: checkmarkDraw 0.4s ease-in-out 0.2s forwards;
+      opacity: 0;
+    }
+
+    @keyframes checkmarkDraw {
+      0% {
+        width: 0;
+        height: 0;
+        left: 12px;
+        top: 12px;
+        opacity: 1;
+      }
+
+      50% {
+        width: 10px;
+        height: 0;
+        left: 12px;
+        top: 12px;
+        opacity: 1;
+      }
+
+      100% {
+        width: 10px;
+        height: 20px;
+        left: 12px;
+        top: 5px;
+        opacity: 1;
+      }
+    }
+
+    .success-message {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--success);
+      margin-bottom: 8px;
+    }
+
+    .success-description {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 24px;
+      background-color: var(--modal-header-footer-bg);
+      border-bottom: var(--borders);
+      margin-bottom: 0px;
+      padding-bottom: 16px;
+      transition: border-color 0.3s ease, background-color 0.3s ease;
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+    }
+
+    .modal-header h2 {
+      margin: 0;
+      color: var(--text);
+      font-size: 20px;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 24px;
+      cursor: pointer;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .modal-close:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+      color: var(--text);
+    }
+
+    .modal-body {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 24px;
+    }
+
+    .modal-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .modal-field-label {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .modal-field-value {
+      font-size: 14px;
+      color: var(--text);
+      word-break: break-word;
+      padding: 8px 12px;
+      background-color: rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    :root.light-mode .modal-field-value {
+      background-color: var(--modal-header-footer-bg);
+      border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    .modal-footer {
+      display: flex;
+      gap: 10px;
+      padding: 16px 24px;
+      background-color: var(--modal-header-footer-bg);
+      border-top: var(--borders);
+      margin-top: 0;
+      transition: border-color 0.3s ease, background-color 0.3s ease;
+      justify-content: flex-end;
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+    }
+
+    .modal-btn {
+      flex: 0;
+      padding: 10px 14px;
+      border-radius: 6px;
+      border: var(--borders);
+      background: transparent;
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .modal-btn:hover {
+      background-color: rgba(0, 164, 255, 0.1);
+      border-color: var(--accent);
+    }
+
+    .modal-btn.primary {
+      background: var(--accent);
+      color: var(--bg);
+      border: 0;
+    }
+
+    .modal-btn.primary:hover {
+      opacity: 0.9;
+    }
+
+    .modal-btn.delete {
+      color: var(--danger);
+      border-color: rgba(255, 85, 102, 0.3);
+    }
+
+    .modal-btn.delete:hover {
+      background-color: rgba(255, 85, 102, 0.1);
+      border-color: var(--danger);
+    }
+
+    #editSave {
+      background: var(--accent);
+      color: var(--bg);
+      border: 0;
+    }
+
+    #editSave:hover {
+      background: var(--accent);
+      opacity: 0.9;
+    }
+
+    .confirm-dialog {
+      display: none;
+      position: fixed;
+      z-index: 2000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      opacity: 0;
+      transition: opacity 0.3s ease-in-out;
+    }
+
+    .confirm-dialog.active {
+      display: flex;
+      opacity: 1;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .confirm-content {
+      background-color: var(--panel);
+      margin: auto;
+      padding: 0;
+      border-radius: 12px;
+      border: var(--borders);
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      animation: slideIn 0.3s ease-in-out;
+      transition: background-color 0.3s ease;
+    }
+
+    .confirm-header {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--danger);
+      margin-bottom: 60px;
+    }
+
+    .confirm-message {
+      font-size: 15px;
+      font-weight: 400;
+      color: var(--text);
+      margin-bottom: 24px;
+      line-height: 1.5;
+      padding: 0 24px;
+    }
+
+    .confirm-content .modal-header {
+      margin-bottom: 16px;
+    }
+
+    .confirm-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      padding: 16px 24px;
+      background-color: var(--modal-header-footer-bg);
+      border-top: var(--borders);
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+    }
+
+    .confirm-btn {
+      flex: 0;
+      padding: 10px 14px;
+      border-radius: 6px;
+      border: var(--borders);
+      background: transparent;
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .confirm-btn:hover {
+      background-color: rgba(0, 164, 255, 0.1);
+      border-color: var(--accent);
+    }
+
+    .confirm-btn.danger {
+      color: var(--danger);
+      border-color: rgba(255, 85, 102, 0.3);
+    }
+
+    .confirm-btn.danger:hover {
+      background-color: rgba(255, 85, 102, 0.1);
+      border-color: var(--danger);
+    }
+
+    .edit-form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .form-input {
+      padding: 10px;
+      font-size: 14px;
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--text);
+      border: var(--borders);
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(0, 164, 255, 0.2);
+    }
+
+    .form-textarea {
+      padding: 10px;
+      font-size: 14px;
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--text);
+      border: var(--borders);
+      font-family: inherit;
+      resize: vertical;
+      min-height: 80px;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .form-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(0, 164, 255, 0.2);
+    }
+
+    .edit-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+      justify-content: flex-end;
+    }
+
+    .edit-buttons button {
+      flex: 0;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 16px;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: auto;
+    }
+
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+
+    .option-card-group {
+      padding: 0 8px;
+      border: none;
+      display: flex;
+      flex-direction: column;
+      background-color: var(--modal-header-footer-bg);
+      border: var(--borders);
+      border-radius: 8px;
+      gap: 0;
+    }
+
+    .option-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      cursor: pointer;
+      border-radius: 0;
+      margin-bottom: 0;
+      background-color: transparent;
+      border: none;
+      transition: none;
+    }
+
+    .option-card:hover {
+      background-color: var(--highlight-bg);
+    }
+
+    .option-card input[type="radio"] {
+      appearance: radio;
+      -webkit-appearance: radio;
+      -moz-appearance: radio;
+      width: 16px;
+      height: 16px;
+      border: 1px solid var(--muted);
+      border-radius: 50%;
+      transition: none;
+      flex-shrink: 0;
+    }
+
+    .option-card input[type="radio"]:checked {
+      border-color: var(--accent);
+    }
+
+    .password-generator-btn {
+      background: transparent;
+      border: var(--borders);
+      padding: 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      color: var(--accent);
+      transition: all 0.2s ease;
+    }
+
+    .password-generator-btn:hover {
+      background-color: rgba(0, 0, 0, 0.1);
+      border-color: var(--accent);
+    }
+
+    .password-generator-btn svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .password-display {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      background-color: var(--modal-header-footer-bg);
+      border-radius: 8px;
+      border: var(--borders);
+      margin-bottom: 16px;
+      transition: all 0.3s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    :root.light-mode .password-display {
+      border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    .password-text {
+      flex: 1;
+      font-family: Inter, system-ui;
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--text);
+      word-break: break-all;
+      letter-spacing: 2px;
+      cursor: pointer;
+      transition: color 0.2s ease;
+      /* Ensure inline spans don’t break layout */
+      /*text go out of the box remove so the text will not leave the text area but will expand it*/
+      white-space: pre;
+      overflow: hidden;
+      /* line-height: 1.4; */
+    }
+
+    .password-number {
+      color: var(--accent);
+      filter: brightness(1.2);
+    }
+
+    .password-symbol {
+      color: var(--danger);
+      /* or choose another color like #FFA500 or var(--success) */
+      filter: brightness(1.2);
+    }
+
+    .password-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .length-control {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .length-control-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .length-label {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .length-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .slider-wrapper {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    input[type="range"] {
+      flex: 1;
+      height: 4px;
+      border-radius: 2px;
+      background: linear-gradient(to right,
+          var(--accent) 0%,
+          var(--accent) var(--value),
+          rgba(255, 255, 255, 0.1) var(--value),
+          rgba(255, 255, 255, 0.1) 100%);
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+    }
+
+    input[type="range"]::-moz-range-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    .length-input {
+      width: 60px;
+      padding: 6px 8px;
+      font-size: 14px;
+      border-radius: 4px;
+      background: var(--panel);
+      color: var(--text);
+      border: var(--borders);
+      text-align: center;
+      font-weight: 600;
+    }
+
+    .length-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(101, 171, 255, 0.2);
+    }
+
+    .strength-indicator {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .strength-label {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    /* ✅ NEW: Progress bar styles */
+    .strength-progress-container {
+      height: 6px;
+      background-color: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      overflow: hidden;
+      transition: background-color 0.3s ease;
+    }
+
+    .strength-progress {
+      height: 100%;
+      width: 0%;
+      background-color: var(--danger);
+      /* default: weak */
+      border-radius: 3px;
+      transition: width 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+        background-color 0.3s ease;
+    }
+
+    .strength-progress.medium {
+      background-color: #FFA500;
+    }
+
+    .strength-progress.strong {
+      background-color: var(--success);
+    }
+
+    .strength-text {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .strength-text.weak {
+      color: var(--danger);
+    }
+
+    .strength-text.medium {
+      color: #FFA500;
+    }
+
+    .strength-text.strong {
+      color: var(--success);
+    }
+
+    .options-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .option-checkbox {
+      display: flex;
+      flex: calc(50% - 5px);
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .option-checkbox:hover {
+      color: var(--accent);
+    }
+
+    .option-checkbox input[type="checkbox"] {
+      margin: 0;
+      cursor: pointer;
+    }
+
+    .option-label {
+      font-size: 14px;
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .generate-btn {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .generate-btn:hover {
+      opacity: 0.9;
+    }
+
+    .generate-btn:active {
+      transform: scale(0.98);
+    }
+
+    @keyframes passwordFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-5px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .password-text.new-password {
+      animation: passwordFadeIn 0.3s ease;
+    }
+
+    @media (min-width:850px) {
+      .app {
+        flex-direction: row;
+      }
+
+      .sidebar {
+        width: 260px;
+      }
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .loading {
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    .copy-btn {
+      background: transparent;
+      border: none;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+      border-radius: 4px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: color 0.2s ease, transform 0.2s ease;
+      flex-shrink: 0;
+      opacity: 0;
+    }
+
+    .modal-field-value:hover .copy-btn {
+      opacity: 1;
+    }
+
+    @media (max-width: 768px) {
+      .copy-btn {
+        opacity: 1 !important;
+      }
+    }
+
+    .copy-btn:hover {
+      color: var(--accent);
+    }
+
+    .copy-btn.copied {
+      color: var(--success) !important;
+      transform: scale(1.15);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="header">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+      </svg>
+      Bitwarden Dedupe
+    </div>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <button class="password-generator-btn" id="passwordGeneratorBtn" aria-label="Password Generator">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+      </button>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+        <svg id="sunIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+        <svg id="moonIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <div class="app">
+    <div class="sidebar">
+      <label class="btn">
+        Upload JSON
+        <input type="file" id="fileInput" accept=".json, .csv" style="display:none;">
+      </label>
+      <div id="fileName" style="font-size:13px;color:var(--muted);">No file loaded</div>
+      <select id="criteria" class="btn">
+        <option value="name+username+uri">Name + Username + URI</option>
+        <option value="name+uri">Name + URI</option>
+        <option value="full">Exact JSON Match</option>
+      </select>
+      <button class="btn" id="optionsBtn">Duplicate Detection Options</button>
+      <button class="btn primary" id="detectBtn" disabled>Detect duplicates</button>
+      <button class="btn" style="border-color:var(--danger);color:var(--danger);" id="removeSelectedBtn" disabled>Remove
+        Selected</button>
+      <button class="btn primary" id="exportBtn" disabled>Export Cleaned Vault</button>
+      <button class="btn" style="border-color:var(--danger);color:var(--danger); display:none;" id="logoutBtn">Clear
+        Session</button>
+    </div>
+    <div class="main">
+      <div style="display: flex; gap: 20px; align-items: center; padding: 0 5px;">
+        <div style="font-size:14px; color:var(--muted);">
+          Entries: <span id="entryCount" style="color:var(--success); font-weight:600;">0</span>
+        </div>
+        <div style="font-size:14px; color:var(--muted);">
+          Duplicates: <span id="dupCount" style="color:var(--danger); font-weight:600;">0</span>
+        </div>
+        <button class="btn" id="selectAllBtn">Select All</button>
+      </div>
+      <input id="search" placeholder="Search entries…">
+      <div class="table-wrapper">
+        <table id="vaultTable"></table>
+      </div>
+    </div>
+  </div>
+  <div class="footer">
+    Made with <span style="color: var(--danger);">❤</span> by <a href="https://github.com/melsiir"
+      target="_blank">melsiir</a>
+  </div>
+  <!-- Modals -->
+  <div id="entryModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle">Entry Details</h2>
+        <button class="modal-close" id="modalClose">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer">
+        <button class="modal-btn" id="modalEditBtn">Edit Entry</button>
+        <button class="modal-btn delete" id="modalDeleteBtn">Delete Entry</button>
+      </div>
+    </div>
+  </div>
+  <!-- Confirmation Dialog -->
+  <div id="confirmDialog" class="confirm-dialog">
+    <div class="confirm-content">
+      <div class="modal-header">
+        <h2 id="confirmHeader">Confirm Action</h2>
+        <button class="modal-close" id="confirmClose">&times;</button>
+      </div>
+      <div class="confirm-message" id="confirmMessage">Are you sure?</div>
+      <div class="confirm-buttons">
+        <button class="confirm-btn" id="confirmCancel">Cancel</button>
+        <button class="confirm-btn primary" id="confirmYes">Confirm</button>
+      </div>
+    </div>
+  </div>
+  <!-- Edit Modal -->
+  <div id="editModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="editTitle">Edit Entry</h2>
+        <button class="modal-close" id="editClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form class="edit-form" id="editForm">
+          <div class="form-group">
+            <label class="form-label">Name</label>
+            <input type="text" id="editName" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Username</label>
+            <input type="text" id="editUsername" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password</label>
+            <input type="password" id="editPassword" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">URI</label>
+            <input type="text" id="editUri" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Notes</label>
+            <textarea id="editNotes" class="form-textarea"></textarea>
+          </div>
+          <div class="edit-buttons">
+            <button type="button" class="modal-btn" id="editCancel">Cancel</button>
+            <button type="button" class="modal-btn primary" id="editSave">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <!-- Options Modal -->
+  <div id="optionsModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="optionsTitle">Duplicate Detection Options</h2>
+        <button class="modal-close" id="optionsClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">URI Matching Mode</label>
+          <div class="option-card-group">
+            <label class="option-card">
+              <input type="radio" name="uriMode" value="full" id="uriModeFull">
+              Full URI (Default)
+            </label>
+            <label class="option-card">
+              <input type="radio" name="uriMode" value="hostname" id="uriModeHostname">
+              Hostname Only
+            </label>
+            <label class="option-card">
+              <input type="radio" name="uriMode" value="mainDomain" id="uriModeMainDomain">
+              Main Domain Only
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn" id="optionsExit">Cancel</button>
+        <button class="modal-btn primary" id="optionsSave">Save Options</button>
+      </div>
+    </div>
+  </div>
+  <!-- Password Generator Modal -->
+  <div id="passwordGeneratorModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Password Generator</h2>
+        <button class="modal-close" id="passwordGeneratorClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="password-display" id="passwordDisplay">
+          <div class="password-text" id="passwordText">Click Generate</div>
+        </div>
+        <div class="password-controls">
+          <div class="length-control">
+            <div class="length-control-header">
+              <label class="length-label">Password Length</label>
+              <span class="length-value" id="lengthValue">16</span>
+            </div>
+            <div class="slider-wrapper">
+              <input type="range" id="lengthSlider" min="4" max="128" value="16" />
+              <input type="number" id="lengthInput" class="length-input" min="4" max="128" value="16" />
+            </div>
+          </div>
+          <!-- ✅ Replaced strength-bars with progress bar -->
+          <div class="strength-indicator">
+            <label class="strength-label">Password Strength</label>
+            <div class="strength-progress-container">
+              <div class="strength-progress" id="strengthProgress"></div>
+            </div>
+            <div class="strength-text" id="strengthText">Very Weak</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Options</label>
+          <div class="options-group">
+            <label class="option-checkbox">
+              <input type="checkbox" id="optUppercase" checked />
+              <span class="option-label">Uppercase (A-Z)</span>
+            </label>
+            <label class="option-checkbox">
+              <input type="checkbox" id="optLowercase" checked />
+              <span class="option-label">Lowercase (a-z)</span>
+            </label>
+            <label class="option-checkbox">
+              <input type="checkbox" id="optNumbers" checked />
+              <span class="option-label">Numbers (0-9)</span>
+            </label>
+            <label class="option-checkbox">
+              <input type="checkbox" id="optSymbols" checked />
+              <span class="option-label">Symbols (!@#$%^&*)</span>
+            </label>
+            <label class="option-checkbox">
+              <input type="checkbox" id="optAvoidAmbiguous" />
+              <span class="option-label">Avoid Ambiguous Characters (l, 1, I, O, 0)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="generate-btn" id="generatePasswordBtn">Generate Password</button>
+      </div>
+    </div>
+  </div>
+  <!-- Success Toast -->
+  <div id="successToast" class="success-toast">
+    <div class="success-content">
+      <div class="checkmark-circle">
+        <div class="checkmark"></div>
+      </div>
+      <div class="success-message" id="successMessage">Success!</div>
+      <div class="success-description" id="successDescription">Action completed successfully</div>
+    </div>
+  </div>
+  <script>
+    const STORAGE_KEY_VAULT = "bitwardenVault";
+    const STORAGE_KEY_ITEMS = "bitwardenItems";
+    const STORAGE_KEY_DUPLICATES = "bitwardenDuplicates";
+    const STORAGE_KEY_CRITERIA = "bitwardenCriteria";
+    const STORAGE_KEY_FILENAME = "bitwardenFileName";
+    const STORAGE_KEY_URIMODE = "bitwardenUriMode";
+    const STORAGE_KEY_THEME = "bitwardenTheme";
+    const vaultStorage = sessionStorage;
+    const themeStorage = localStorage;
+    let vault = null;
+    let items = [];
+    let filtered = [];
+    let duplicates = new Set();
+    let currentOpenedItemId = null;
+    let editingItemId = null;
+    let uriMode = vaultStorage.getItem(STORAGE_KEY_URIMODE) || 'full';
+    let isDarkMode = themeStorage.getItem(STORAGE_KEY_THEME) !== 'light';
+    applyTheme();
+    function applyTheme() {
+      const html = document.documentElement;
+      if (isDarkMode) {
+        html.classList.remove('light-mode');
+      } else {
+        html.classList.add('light-mode');
+      }
+      themeStorage.setItem(STORAGE_KEY_THEME, isDarkMode ? 'dark' : 'light');
+    }
+    function toggleTheme() {
+      isDarkMode = !isDarkMode;
+      if (items.length > 0) {
+        const html = document.documentElement;
+        html.classList.add('no-transitions');
+        applyTheme();
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            html.classList.remove('no-transitions');
+          });
+        });
+      } else {
+        applyTheme();
+      }
+    }
+    document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+    function escapeHtml(unsafe) {
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+    function renderTable() {
+      const table = document.getElementById("vaultTable");
+      if (!filtered.length) {
+        table.innerHTML = "<tr><td style='padding:20px;color:gray;'>No entries</td></tr>";
+        return;
+      }
+      table.innerHTML = `
+    <tr>
+      <th></th>
+      <th>Name</th>
+      <th>Username</th>
+      <th>URI</th>
+    </tr>
+  `;
+      let rows = "";
+      for (const item of filtered) {
+        const login = item.login || {};
+        const uri = login.uris && login.uris.length ? login.uris[0].uri : "";
+        rows += `
+    <tr class="entry-row" data-id="${item.id}" style="cursor: pointer;">
+      <td><input type="checkbox" data-id="${item.id}" ${duplicates.has(item.id) ? "checked" : ""}></td>
+      <td class="urlName">${item.name || ""}</td>
+      <td>${login.username || ""}</td>
+      <td>${uri || ""}</td>
+    </tr>
+  `;
+      }
+      table.innerHTML += rows;
+      animateCount("entryCount", items.length);
+      animateCount("dupCount", duplicates.size);
+      updateButtonStates();
+      attachRowClickListeners();
+    }
+    if (typeof crypto.randomUUID !== 'function') {
+      crypto.randomUUID = function () {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+          var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+    }
+    function animateCount(elementId, finalValue) {
+      const element = document.getElementById(elementId);
+      if (!element) return;
+      const startValue = parseInt(element.textContent) || 0;
+      const duration = 500;
+      let startTime = null;
+      const step = (timestamp) => {
+        if (!startTime) startTime = timestamp;
+        const progress = timestamp - startTime;
+        const percentage = Math.min(progress / duration, 1);
+        const currentValue = Math.floor(percentage * (finalValue - startValue) + startValue);
+        element.textContent = currentValue;
+        if (percentage < 1) {
+          window.requestAnimationFrame(step);
+        } else {
+          element.textContent = finalValue;
+        }
+      };
+      window.requestAnimationFrame(step);
+    }
+    function saveState() {
+      if (vault && items.length > 0) {
+        vaultStorage.setItem(STORAGE_KEY_VAULT, JSON.stringify(vault));
+        vaultStorage.setItem(STORAGE_KEY_ITEMS, JSON.stringify(items));
+        vaultStorage.setItem(STORAGE_KEY_DUPLICATES, JSON.stringify(Array.from(duplicates)));
+        vaultStorage.setItem(STORAGE_KEY_CRITERIA, document.getElementById("criteria").value);
+        vaultStorage.setItem(STORAGE_KEY_FILENAME, document.getElementById("fileName").textContent);
+        vaultStorage.setItem(STORAGE_KEY_URIMODE, uriMode);
+      }
+    }
+    function loadState() {
+      const savedVault = vaultStorage.getItem(STORAGE_KEY_VAULT);
+      const savedItems = vaultStorage.getItem(STORAGE_KEY_ITEMS);
+      const savedDuplicates = vaultStorage.getItem(STORAGE_KEY_DUPLICATES);
+      const savedCriteria = vaultStorage.getItem(STORAGE_KEY_CRITERIA);
+      const savedFileName = vaultStorage.getItem(STORAGE_KEY_FILENAME);
+      const savedUriMode = vaultStorage.getItem(STORAGE_KEY_URIMODE);
+      if (savedVault && savedItems) {
+        try {
+          vault = JSON.parse(savedVault);
+          items = JSON.parse(savedItems);
+          filtered = [...items];
+          duplicates = new Set(JSON.parse(savedDuplicates || "[]"));
+          if (savedCriteria) {
+            document.getElementById("criteria").value = savedCriteria;
+          }
+          if (savedFileName) {
+            document.getElementById("fileName").textContent = savedFileName;
+          }
+          if (savedUriMode) {
+            uriMode = savedUriMode;
+          }
+          renderTable();
+          updateButtonStates();
+          console.log("State restored from sessionStorage.");
+        } catch (e) {
+          console.error("Failed to restore state from sessionStorage:", e);
+          vaultStorage.clear();
+        }
+      }
+    }
+    function updateButtonStates() {
+      const isLoaded = items.length > 0;
+      document.getElementById("detectBtn").disabled = !isLoaded;
+      document.getElementById("removeSelectedBtn").disabled = !isLoaded;
+      document.getElementById("exportBtn").disabled = !isLoaded;
+      document.getElementById("logoutBtn").style.display = isLoaded ? 'block' : 'none';
+    }
+    function attachRowClickListeners() {
+      const rows = document.querySelectorAll(".entry-row");
+      rows.forEach(row => {
+        row.addEventListener("click", (e) => {
+          if (e.target.type === "checkbox") return;
+          const itemId = row.dataset.id;
+          const item = items.find(i => i.id === itemId);
+          if (item) showModal(item);
+        });
+      });
+    }
+    function showModal(item) {
+      const modal = document.getElementById("entryModal");
+      const modalTitle = document.getElementById("modalTitle");
+      const modalBody = document.getElementById("modalBody");
+      modalTitle.textContent = item.name || "Entry Details";
+      currentOpenedItemId = item.id;
+      let fieldsHTML = "";
+      const displayFields = [
+        {key: "id", label: "ID"},
+        {key: "name", label: "Name"},
+        {key: "type", label: "Type"},
+        {key: "organizationId: null", label: "Organization ID"},
+        {key: "folderId: null", label: "Folder ID"},
+        {key: "favorite: false", label: "Favorite"},
+        {key: "notes", label: "Notes"}
+      ];
+      if (item.login) {
+        displayFields.push(
+          {key: "login.username", label: "Username", parent: "login"},
+          {key: "login.password", label: "Password", parent: "login"},
+          {key: "login.totp", label: "TOTP", parent: "login"}
+        );
+        if (item.login.uris && item.login.uris.length > 0) {
+          item.login.uris.forEach((uri, idx) => {
+            const displayValue = uri.uri || "";
+            fieldsHTML += `
+          <div class="modal-field">
+            <div class="modal-field-label">URI ${idx + 1}</div>
+            <div class="modal-field-value" data-copy="${escapeHtml(displayValue)}">
+              ${displayValue}
+              <button class="copy-btn" aria-label="Copy URI">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+        `;
+          });
+        }
+      }
+      displayFields.forEach(field => {
+        let value;
+        if (field.parent) {
+          value = item[field.parent] ? item[field.parent][field.key.split(".")[1]] : null;
+        } else {
+          value = item[field.key];
+        }
+        if (value !== null && value !== undefined && value !== "") {
+          const displayValue = typeof value === "object" ? JSON.stringify(value, null, 2) : String(value);
+          fieldsHTML += `
+        <div class="modal-field">
+          <div class="modal-field-label">${field.label}</div>
+          <div class="modal-field-value" data-copy="${escapeHtml(displayValue)}">
+            ${displayValue}
+            <button class="copy-btn" aria-label="Copy ${field.label}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      `;
+        }
+      });
+      if (item.fields && item.fields.length > 0) {
+        const displayValue = JSON.stringify(item.fields, null, 2);
+        fieldsHTML += `
+      <div class="modal-field">
+        <div class="modal-field-label">Custom Fields</div>
+        <div class="modal-field-value" data-copy="${escapeHtml(displayValue)}">
+          ${displayValue}
+          <button class="copy-btn" aria-label="Copy Custom Fields">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    `;
+      }
+      if (item.attachments && item.attachments.length > 0) {
+        const displayValue = JSON.stringify(item.attachments, null, 2);
+        fieldsHTML += `
+      <div class="modal-field">
+        <div class="modal-field-label">Attachments</div>
+        <div class="modal-field-value" data-copy="${escapeHtml(displayValue)}">
+          ${displayValue}
+          <button class="copy-btn" aria-label="Copy Attachments">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    `;
+      }
+      modalBody.innerHTML = fieldsHTML || "<p>No additional data</p>";
+      modalBody.addEventListener('click', function (e) {
+        if (e.target.closest('.copy-btn')) {
+          e.preventDefault();
+          const button = e.target.closest('.copy-btn');
+          const container = button.closest('.modal-field-value');
+          const valueToCopy = container.getAttribute('data-copy');
+          const copyText = () => {
+            navigator.clipboard.writeText(valueToCopy).catch(() => {
+              const textarea = document.createElement('textarea');
+              textarea.value = valueToCopy;
+              document.body.appendChild(textarea);
+              textarea.select();
+              document.execCommand('copy');
+              document.body.removeChild(textarea);
+            });
+          };
+          copyText();
+          button.classList.add('copied');
+          setTimeout(() => {
+            button.classList.remove('copied');
+          }, 600);
+        }
+      });
+      modal.classList.add("active");
+    }
+    function closeModal() {
+      const modal = document.getElementById("entryModal");
+      modal.classList.add("closing");
+      setTimeout(() => {
+        modal.classList.remove("active", "closing");
+        currentOpenedItemId = null;
+      }, 300);
+    }
+    function showSuccessToast(message, description, callback = null) {
+      const toast = document.getElementById("successToast");
+      document.getElementById("successMessage").textContent = message;
+      document.getElementById("successDescription").textContent = description;
+      toast.classList.add("active");
+      setTimeout(() => {
+        toast.classList.add("closing");
+        setTimeout(() => {
+          toast.classList.remove("active", "closing");
+          if (callback) {
+            callback();
+          }
+        }, 300);
+      }, 2000);
+    }
+    function deleteEntry() {
+      if (!currentOpenedItemId) return;
+      showConfirmDialog("Delete Entry", "Are you sure you want to delete this entry? This action cannot be undone.", performDelete);
+    }
+    function performDelete() {
+      items = items.filter(item => item.id !== currentOpenedItemId);
+      filtered = filtered.filter(item => item.id !== currentOpenedItemId);
+      duplicates.delete(currentOpenedItemId);
+      closeModal();
+      saveState();
+      renderTable();
+      showSuccessToast("Entry Deleted", "The entry has been successfully deleted");
+    }
+    function editEntry() {
+      if (!currentOpenedItemId) return;
+      const item = items.find(i => i.id === currentOpenedItemId);
+      if (!item) return;
+      editingItemId = currentOpenedItemId;
+      document.getElementById("editName").value = item.name || "";
+      const login = item.login || {};
+      document.getElementById("editUsername").value = login.username || "";
+      document.getElementById("editPassword").value = login.password || "";
+      const uri = login.uris && item.login.uris.length ? item.login.uris[0].uri : "";
+      document.getElementById("editUri").value = uri || "";
+      document.getElementById("editNotes").value = item.notes || "";
+      closeModal();
+      document.getElementById("editModal").classList.add("active");
+    }
+    function showConfirmDialog(header, message, callback) {
+      document.getElementById("confirmHeader").textContent = header;
+      document.getElementById("confirmMessage").textContent = message;
+      const dialog = document.getElementById("confirmDialog");
+      const yesBtn = document.getElementById("confirmYes");
+      const cancelBtn = document.getElementById("confirmCancel");
+      const newYes = yesBtn.cloneNode(true);
+      const newCancel = cancelBtn.cloneNode(true);
+      yesBtn.parentNode.replaceChild(newYes, yesBtn);
+      cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+      document.getElementById("confirmClose").addEventListener("click", () => {
+        dialog.classList.remove("active");
+      });
+      document.getElementById("confirmYes").addEventListener("click", () => {
+        dialog.classList.remove("active");
+        callback();
+      });
+      document.getElementById("confirmCancel").addEventListener("click", () => {
+        dialog.classList.remove("active");
+      });
+      dialog.classList.add("active");
+    }
+    function saveEdit() {
+      if (!editingItemId) return;
+      const item = items.find(i => i.id === editingItemId);
+      if (!item) return;
+      item.name = document.getElementById("editName").value;
+      if (!item.login) item.login = {};
+      item.login.username = document.getElementById("editUsername").value;
+      item.login.password = document.getElementById("editPassword").value;
+      const newUri = document.getElementById("editUri").value;
+      if (newUri) {
+        if (!item.login.uris) item.login.uris = [];
+        if (item.login.uris.length === 0) {
+          item.login.uris.push({uri: newUri, match: null});
+        } else {
+          item.login.uris[0].uri = newUri;
+        }
+      }
+      item.notes = document.getElementById("editNotes").value;
+      document.getElementById("editModal").classList.remove("active");
+      editingItemId = null;
+      saveState();
+      renderTable();
+      showSuccessToast("Entry Updated", "The entry has been successfully updated");
+    }
+    function parseCsvLine(line) {
+      const values = [];
+      let inQuotes = false;
+      let current = '';
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        const nextChar = line[i + 1];
+        if (char === '"' && !inQuotes) {
+          inQuotes = true;
+        } else if (char === '"' && nextChar === '"') {
+          current += '"';
+          i++;
+        } else if (char === '"' && inQuotes) {
+          inQuotes = false;
+        } else if (char === ',' && !inQuotes) {
+          values.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      values.push(current.trim());
+      return values;
+    }
+    function parseGoogleCsv(csvText) {
+      const lines = csvText.split(/\r?\n/).filter(line => line.trim());
+      if (!lines.length) return [];
+      const headers = parseCsvLine(lines[0]);
+      const result = [];
+      for (let i = 1; i < lines.length; i++) {
+        const values = parseCsvLine(lines[i]);
+        if (values.length < 5) continue;
+        const [name, url, username, password, note] = values;
+        result.push({
+          id: crypto.randomUUID(),
+          organizationId: null,
+          folderId: null,
+          type: 1,
+          reprompt: 0,
+          name: name || "",
+          notes: note || "",
+          favorite: false,
+          login: {
+            username: username || "",
+            password: password || "",
+            totp: null,
+            uris: url ? [{uri: url, match: null}] : []
+          }
+        });
+      }
+      return result;
+    }
+    function logout() {
+      vaultStorage.clear();
+      vault = null;
+      items = [];
+      filtered = [];
+      duplicates.clear();
+      currentOpenedItemId = null;
+      document.getElementById("fileName").textContent = "No file loaded";
+      document.getElementById("entryCount").textContent = "0";
+      document.getElementById("dupCount").textContent = "0";
+      renderTable();
+      updateButtonStates();
+      showSuccessToast("Logged Out", "You have been successfully logged out");
+    }
+    function applySearch() {
+      const q = document.getElementById("search").value.toLowerCase();
+      filtered = items.filter((item) => {
+        const login = item.login || {};
+        const uri = login.uris && login.uris.length ? login.uris[0].uri : "";
+        return (
+          (item.name || "").toLowerCase().includes(q) ||
+          (login.username || "").toLowerCase().includes(q) ||
+          (uri || "").toLowerCase().includes(q)
+        );
+      });
+      renderTable();
+      saveState();
+    }
+    function hashItem(item, mode) {
+      const login = item.login || {};
+      const uri = login.uris && login.uris.length ? login.uris[0].uri : "";
+      const uriKey = getUriKey(uri, uriMode);
+      const username = login.username || "";
+      const name = item.name || "";
+      if (mode === "name+username+uri") return name + "|" + username + "|" + uriKey;
+      if (mode === "name+uri") return name + "|" + uriKey;
+      if (mode === "full") return JSON.stringify(item);
+      return "";
+    }
+    function getUriKey(uri, mode) {
+      if (!uri) return "";
+      try {
+        const url = new URL(uri);
+        let hostname = url.hostname;
+        if (mode === 'hostname') {
+          return hostname;
+        }
+        if (mode === 'mainDomain') {
+          const parts = hostname.split('.');
+          if (parts.length > 2) {
+            return parts.slice(-2).join('.');
+          }
+          return hostname;
+        }
+        return uri;
+      } catch (e) {
+        return uri;
+      }
+    }
+    function detectDuplicates() {
+      duplicates.clear();
+      const mode = document.getElementById("criteria").value;
+      const map = new Map();
+      for (const item of items) {
+        const key = hashItem(item, mode);
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(item);
+      }
+      for (const [key, list] of map.entries()) {
+        if (list.length > 1) {
+          for (let i = 1; i < list.length; i++) {
+            duplicates.add(list[i].id);
+          }
+        }
+      }
+      renderTable();
+      saveState();
+    }
+    function removeSelected() {
+      const checkboxes = document.querySelectorAll("input[type=checkbox][data-id]");
+      const idsToRemove = new Set();
+      checkboxes.forEach(cb => {if (cb.checked) idsToRemove.add(cb.dataset.id);});
+      if (idsToRemove.size === 0) return;
+      items = items.filter(x => !idsToRemove.has(x.id));
+      filtered = [...items];
+      duplicates.clear();
+      saveState();
+      updateButtonStates();
+      renderTable();
+      showSuccessToast("Duplicates Removed", idsToRemove.size + " duplicate entry(ies) have been removed");
+    }
+    function exportVault() {
+      const cleaned = {...vault, items};
+      const blob = new Blob([JSON.stringify(cleaned, null, 2)], {type: "application/json"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "bitwarden-cleaned.json";
+      a.click();
+      vaultStorage.clear();
+    }
+    document.getElementById("fileInput").addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      vaultStorage.clear();
+      if (file.size > 50 * 1024 * 1024) {
+        alert("Warning: File is larger than 50MB. Processing may be slow or crash the browser.");
+      }
+      document.getElementById("fileName").textContent = "Processing...";
+      document.getElementById("detectBtn").disabled = true;
+      document.getElementById("removeSelectedBtn").disabled = true;
+      document.getElementById("exportBtn").disabled = true;
+      document.getElementById("fileInput").disabled = true;
+      try {
+        const text = await file.text();
+        if (file.name.toLowerCase().endsWith('.json')) {
+          vault = JSON.parse(text);
+          items = vault.items || [];
+        } else if (file.name.toLowerCase().endsWith('.csv')) {
+          items = parseGoogleCsv(text);
+          vault = {
+            "encrypted": false,
+            "folders": [],
+            "items": items,
+            "version": 3
+          };
+        } else {
+          alert("Unsupported file type. Please upload a Bitwarden JSON or Google CSV file.");
+          resetFileInput();
+          return;
+        }
+        filtered = [...items];
+        duplicates.clear();
+        renderTable();
+        saveState();
+        document.getElementById("fileName").textContent = file.name;
+      } catch (e) {
+        alert("Error loading file: " + (e.message || e));
+        resetFileInput();
+      } finally {
+        document.getElementById("fileInput").disabled = false;
+        updateButtonStates();
+      }
+    });
+    function resetFileInput() {
+      document.getElementById("fileName").textContent = "No file loaded";
+      document.getElementById("fileInput").value = "";
+    }
+    document.getElementById("search").addEventListener("input", applySearch);
+    document.getElementById("detectBtn").addEventListener("click", detectDuplicates);
+    document.getElementById("removeSelectedBtn").addEventListener("click", removeSelected);
+    document.getElementById("exportBtn").addEventListener("click", exportVault);
+    document.getElementById("criteria").addEventListener("change", saveState);
+    document.getElementById("modalClose").addEventListener("click", closeModal);
+    document.getElementById("entryModal").addEventListener("click", (e) => {
+      if (e.target.id === "entryModal") closeModal();
+    });
+    document.getElementById("modalEditBtn").addEventListener("click", editEntry);
+    document.getElementById("modalDeleteBtn").addEventListener("click", deleteEntry);
+    document.getElementById("editClose").addEventListener("click", () => {
+      document.getElementById("editModal").classList.remove("active");
+    });
+    document.getElementById("editModal").addEventListener("click", (e) => {
+      if (e.target.id === "editModal") document.getElementById("editModal").classList.remove("active");
+    });
+    document.getElementById("editCancel").addEventListener("click", () => {
+      document.getElementById("editModal").classList.remove("active");
+    });
+    document.getElementById("editSave").addEventListener("click", saveEdit);
+    document.getElementById("logoutBtn").addEventListener("click", logout);
+    document.getElementById("selectAllBtn").addEventListener("click", () => {
+      const checkboxes = document.querySelectorAll("input[type=checkbox][data-id]");
+      const visibleCheckboxes = Array.from(checkboxes).filter(cb =>
+        filtered.some(item => item.id === cb.dataset.id)
+      );
+      const allChecked = visibleCheckboxes.every(cb => cb.checked);
+      if (allChecked) {
+        visibleCheckboxes.forEach(cb => cb.checked = false);
+      } else {
+        visibleCheckboxes.forEach(cb => cb.checked = true);
+      }
+    });
+    document.getElementById("optionsBtn").addEventListener("click", () => {
+      document.getElementById("uriModeFull").checked = uriMode === 'full';
+      document.getElementById("uriModeHostname").checked = uriMode === 'hostname';
+      document.getElementById("uriModeMainDomain").checked = uriMode === 'mainDomain';
+      document.getElementById("optionsModal").classList.add("active");
+    });
+    document.getElementById("optionsClose").addEventListener("click", () => {
+      document.getElementById("optionsModal").classList.remove("active");
+    });
+    document.getElementById("optionsExit").addEventListener("click", () => {
+      document.getElementById("optionsModal").classList.remove("active");
+    });
+    document.getElementById("optionsSave").addEventListener("click", () => {
+      uriMode = document.querySelector('input[name="uriMode"]:checked').value;
+      saveState();
+      document.getElementById("optionsModal").classList.remove("active");
+    });
+    document.getElementById("optionsModal").addEventListener("click", (e) => {
+      if (e.target.id === "optionsModal") document.getElementById("optionsModal").classList.remove("active");
+    });
+    // Password Generator Logic
+    const AMBIGUOUS_CHARS = 'l1IO0';
+    const PASSWORD_CHARS = {
+      uppercase: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+      lowercase: 'abcdefghijklmnopqrstuvwxyz',
+      numbers: '0123456789',
+      symbols: '!@#$%^&*()_+-=[]{}|;:,.<>?'
+    };
+    let currentPassword = '';
+    let passwordRafId = null;
+    function getPasswordCharacterSet() {
+      let chars = '';
+      if (document.getElementById('optUppercase').checked) chars += PASSWORD_CHARS.uppercase;
+      if (document.getElementById('optLowercase').checked) chars += PASSWORD_CHARS.lowercase;
+      if (document.getElementById('optNumbers').checked) chars += PASSWORD_CHARS.numbers;
+      if (document.getElementById('optSymbols').checked) chars += PASSWORD_CHARS.symbols;
+      if (document.getElementById('optAvoidAmbiguous').checked) {
+        for (const char of AMBIGUOUS_CHARS) {
+          chars = chars.replace(new RegExp(char, 'g'), '');
+        }
+      }
+      return chars || PASSWORD_CHARS.lowercase;
+    }
+
+    function generatePassword(length) {
+      const chars = getPasswordCharacterSet();
+      if (chars.length === 0) return ''; // Fallback if no character sets are selected
+
+      let passwordArray = [];
+      let guaranteedChars = '';
+
+      // Ensure at least one character from each selected type
+      if (document.getElementById('optUppercase').checked) {
+        guaranteedChars += PASSWORD_CHARS.uppercase.charAt(Math.floor(Math.random() * PASSWORD_CHARS.uppercase.length));
+      }
+      if (document.getElementById('optLowercase').checked) {
+        guaranteedChars += PASSWORD_CHARS.lowercase.charAt(Math.floor(Math.random() * PASSWORD_CHARS.lowercase.length));
+      }
+      if (document.getElementById('optNumbers').checked) {
+        guaranteedChars += PASSWORD_CHARS.numbers.charAt(Math.floor(Math.random() * PASSWORD_CHARS.numbers.length));
+      }
+      if (document.getElementById('optSymbols').checked) {
+        guaranteedChars += PASSWORD_CHARS.symbols.charAt(Math.floor(Math.random() * PASSWORD_CHARS.symbols.length));
+      }
+
+      // Add the guaranteed characters to the password array
+      for (let char of guaranteedChars) {
+        passwordArray.push(char);
+      }
+
+      // Fill the rest of the password length with random characters from the full set
+      for (let i = passwordArray.length; i < length; i++) {
+        passwordArray.push(chars.charAt(Math.floor(Math.random() * chars.length)));
+      }
+
+      // Shuffle the array to randomize the position of the guaranteed characters
+      for (let i = passwordArray.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [passwordArray[i], passwordArray[j]] = [passwordArray[j], passwordArray[i]];
+      }
+
+      return passwordArray.join('');
+    }
+
+
+    function calculatePasswordStrength(password) {
+      const hasUppercase = document.getElementById('optUppercase').checked;
+      const hasLowercase = document.getElementById('optLowercase').checked;
+      const hasNumbers = document.getElementById('optNumbers').checked;
+      const hasSymbols = document.getElementById('optSymbols').checked;
+
+      let score = 0;
+
+      // --- Length-based scoring ---
+      // Reward length, but with diminishing returns for very long passwords of low diversity
+      // A simple linear increase up to a point, then slower increase
+      if (password.length > 0) {
+        score += Math.min(password.length * 4, 40); // Up to 40 points for length (at 10 chars)
+      }
+      if (password.length > 10) {
+        score += (password.length - 10) * 2; // Slower increase after 10 chars (2 points per char)
+      }
+      // Cap length bonus to prevent extremely long low-diversity passwords from scoring too high
+      score = Math.min(score, 80); // Maximum contribution from length is capped
+
+      // --- Diversity-based scoring ---
+      let diversityCount = 0;
+      if (hasUppercase && /[A-Z]/.test(password)) {
+        score += 5; // Bonus for having uppercase (if selected)
+        diversityCount++;
+      }
+      if (hasLowercase && /[a-z]/.test(password)) {
+        score += 5; // Bonus for having lowercase (if selected)
+        diversityCount++;
+      }
+      if (hasNumbers && /[0-9]/.test(password)) {
+        score += 5; // Bonus for having numbers (if selected)
+        diversityCount++;
+      }
+      if (hasSymbols && /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password)) {
+        score += 5; // Bonus for having symbols (if selected)
+        diversityCount++;
+      }
+
+      // --- Diversity multiplier or bonus ---
+      // Having more diverse character types should increase the potential maximum score
+      // This rewards complexity beyond just length.
+      // A password with 4 types can reach higher levels than one with only 1 type.
+      // Add a bonus based on the number of diverse types found
+      score += diversityCount * 5; // Up to 20 bonus points for diversity
+
+      // --- Final calculation and mapping ---
+      // Define score thresholds for each strength level
+      // These thresholds are chosen to reflect the balance between length and diversity
+      if (score < 20) return 0; // Very Weak (e.g., short, single type)
+      if (score < 40) return 1; // Weak (e.g., longer single type, or short diverse)
+      if (score < 60) return 2; // Medium (e.g., good length + 1-2 types, or medium length + 3 types)
+      if (score < 80) return 3; // Strong (e.g., good length + 3-4 types, or very long + 2 types)
+      return 4;                 // Very Strong (e.g., long + all 4 types)
+    }
+
+    function updatePasswordStrength(password) {
+      const strength = calculatePasswordStrength(password);
+      const strengthText = document.getElementById('strengthText');
+      const strengthLevels = ['Very Weak', 'Weak', 'Medium', 'Strong', 'Very Strong'];
+      const progress = document.getElementById('strengthProgress');
+      const percent = (strength / 4) * 100;
+
+      progress.style.width = percent + '%';
+      progress.className = 'strength-progress';
+
+      if (strength === 0 || strength === 1) {
+        strengthText.className = 'strength-text weak';
+        strengthText.textContent = strengthLevels[strength];
+      } else if (strength === 2) {
+        strengthText.className = 'strength-text medium';
+        strengthText.textContent = strengthLevels[2];
+        progress.classList.add('medium');
+      } else if (strength === 3 || strength === 4) {
+        strengthText.className = 'strength-text strong';
+        strengthText.textContent = strengthLevels[strength];
+        progress.classList.add('strong');
+      }
+    }
+
+
+    function displayPassword(password, animated = true) {
+      currentPassword = password;
+      const passwordText = document.getElementById('passwordText');
+
+      // Split password into characters and wrap numbers and symbols in <span> elements with specific classes
+      const html = password
+        .split('')
+        .map(char => {
+          if (/[0-9]/.test(char)) {
+            return `<span class="password-number">${escapeHtml(char)}</span>`;
+          } else if (/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(char)) {
+            return `<span class="password-symbol">${escapeHtml(char)}</span>`;
+          }
+          return escapeHtml(char);
+        })
+        .join('');
+
+      passwordText.innerHTML = html; // Use innerHTML to render the spans
+
+      if (animated) {
+        passwordText.classList.add('new-password');
+        setTimeout(() => passwordText.classList.remove('new-password'), 300);
+      } else {
+        passwordText.classList.remove('new-password');
+      }
+      updatePasswordStrength(password);
+      passwordText.onclick = () => {
+        if (currentPassword) {
+          navigator.clipboard.writeText(currentPassword).catch(() => {
+            const ta = document.createElement('textarea');
+            ta.value = currentPassword;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+          });
+        }
+      };
+    }
+
+
+    function updateLengthValue(value) {
+      const length = Math.max(4, Math.min(128, parseInt(value) || 16));
+      document.getElementById('lengthSlider').value = length;
+      document.getElementById('lengthInput').value = length;
+      document.getElementById('lengthValue').textContent = length;
+    }
+    function updateSliderAccent(slider) {
+      if (!slider) return;
+      const min = parseFloat(slider.min) || 0;
+      const max = parseFloat(slider.max) || 100;
+      const val = parseFloat(slider.value) || 0;
+      const percent = ((val - min) / (max - min)) * 100;
+      slider.style.setProperty('--value', percent + '%');
+    }
+    function throttledDisplayPassword(length) {
+      if (passwordRafId) return;
+      passwordRafId = requestAnimationFrame(() => {
+        displayPassword(generatePassword(length), false);
+        passwordRafId = null;
+      });
+    }
+    document.getElementById('passwordGeneratorBtn').addEventListener('click', () => {
+      document.getElementById('passwordGeneratorModal').classList.add('active');
+      const pass = generatePassword(16);
+      displayPassword(pass);
+      updateSliderAccent(document.getElementById('lengthSlider'));
+    });
+    document.getElementById('passwordGeneratorClose').addEventListener('click', () => {
+      document.getElementById('passwordGeneratorModal').classList.remove('active');
+    });
+    document.getElementById('passwordGeneratorModal').addEventListener('click', (e) => {
+      if (e.target.id === 'passwordGeneratorModal') {
+        document.getElementById('passwordGeneratorModal').classList.remove('active');
+      }
+    });
+    document.getElementById('lengthSlider').addEventListener('input', (e) => {
+      updateLengthValue(e.target.value);
+      updateSliderAccent(e.target);
+      throttledDisplayPassword(parseInt(e.target.value));
+    });
+    document.getElementById('lengthInput').addEventListener('input', (e) => {
+      updateLengthValue(e.target.value);
+      const slider = document.getElementById('lengthSlider');
+      slider.value = e.target.value;
+      updateSliderAccent(slider);
+      throttledDisplayPassword(parseInt(e.target.value));
+    });
+    document.getElementById('lengthInput').addEventListener('change', (e) => {
+      const value = Math.max(4, Math.min(128, parseInt(e.target.value) || 16));
+      updateLengthValue(value);
+      const slider = document.getElementById('lengthSlider');
+      slider.value = value;
+      updateSliderAccent(slider);
+      displayPassword(generatePassword(value), true);
+    });
+    document.getElementById('generatePasswordBtn').addEventListener('click', () => {
+      const length = parseInt(document.getElementById('lengthSlider').value);
+      displayPassword(generatePassword(length), true);
+    });
+    ['optUppercase', 'optLowercase', 'optNumbers', 'optSymbols', 'optAvoidAmbiguous'].forEach(id => {
+      document.getElementById(id).addEventListener('change', () => {
+        const length = parseInt(document.getElementById('lengthSlider').value);
+        displayPassword(generatePassword(length), true);
+      });
+    });
+    loadState();
+  </script>
+</body>
+
+</html>
