@@ -1,42 +1,60 @@
-# 💎 Bitwarden valut Dedupe and cleaner
+# Bitwarden Vault Dedupe 🗂️
 
-Clean bitwarden vault from duplicates entries with easy, sleek, client-side powerhouse designed to meticulously clean and optimize your exported Bitwarden JSON file.
-And the best part is Zero-installation required it run on the browser so you can use it on the go **[bwdedup](https://bitwarden-valut-cleaner.pages.dev)**.
+A simple, privacy-focused tool to clean up duplicate entries in your Bitwarden vault. Built as a single HTML file with no external dependencies or data uploads.
 
-## 🔒 Uncompromising Security: Client-Side Only
+## ✨ Features
 
-This tool operates **entirely within your browser**. No data from your vault is ever transmitted to any external server. The JSON file is loaded, processed, and saved locally, ensuring your sensitive credentials remain absolutely secure and private.
+- **Duplicate Detection** 🔍 - Find duplicate entries based on name, username, and URI combinations
+- **Email Duplicate Detection** 📧 - Specifically identify accounts with the same email but different passwords
+- **URI Matching Modes** 🌐 - Choose between full URI, hostname, or main domain matching
+- **Password Generator** 🔐 - Built-in secure password generator with customization options
+- **Data Privacy** 🔒 - All processing happens locally in your browser, no data leaves your computer
+- **Light/Dark Mode** 🌙 - Automatic theme switching based on your system preference
+- **Export Options** 💾 - Export cleaned vault in Bitwarden JSON or Google CSV format
+- **File Merging** 🔄 - Merge multiple vault files together
 
-## ✨ Elite Features for a Pristine Vault
+## 🚀 Usage
 
-| Feature                         | Description                                                                                       | Impact                       |
-| :------------------------------ | :------------------------------------------------------------------------------------------------ | :--------------------------- |
-| **Pure Client-Side Operation**  | Zero dependencies, zero server calls. Just open the HTML file and go.                             | Maximum Security & Privacy   |
-| **Advanced URI Matching**       | Go beyond simple URL comparison to catch subtle duplicates across subdomains and paths.           | Superior Duplicate Detection |
-| **Flexible Detection Criteria** | Choose from `Name + Username + URI`, `Name + URI`, or `Exact JSON Match`.                         | Granular Control             |
-| **Interactive UI Refinement**   | A dark-themed, Bitwarden-inspired interface with enhanced checkboxes and clear status indicators. | Enhanced User Experience     |
-| **Individual Entry Management** | View, edit, or delete entries directly before exporting the final clean vault.                    | Total Data Control           |
+1. Open `index.html` in your browser (Chrome, Firefox, Safari, Edge all work)
+2. Click "Upload JSON" and select your Bitwarden export file
+3. Choose your duplicate detection criteria from the dropdown:
+   - `Name + Username + URI` - Matches entries with same name, username, and URI
+   - `Name + URI` - Matches entries with same name and URI
+   - `Exact JSON Match` - Matches entries that are identical in every way
+4. Select URI matching mode (if needed):
+   - Full URI - Match the complete URI
+   - Hostname Only - Match only the domain name
+   - Main Domain Only - Match only the main domain (e.g., github.com from subdomain.github.com)
+5. Click "Detect duplicates" to identify potential duplicates
+6. Review the highlighted entries in the table
+7. Select which entries to keep/ignore using checkboxes
+8. Click "Remove Selected" to clean your vault
+9. Export your cleaned vault using the export button
 
-## 🌐 Advanced URI Matching
+## 🛠️ Development
 
-The most common source of "false negatives" in duplicate detection is the slight variation in URLs for the same service (e.g., login pages vs. main pages). I solved this with three matching modes, accessible via the **"Duplicate Detection Options"** button:
+This is a single-file application with no build process required:
 
-1. **Full URI (Default)**: Matches the entire URI string.
-2. **Hostname Only**: Matches only the hostname (e.g., `accounts.google.com` will match `accounts.google.com/login`).
-3. **Main Domain Only (Recommended)**: Matches only the top-level domain (e.g., `google.com` will match all Google subdomains and paths). **This is the key to eliminating duplicates from the same service.**
+- HTML, CSS, and JavaScript in one file
+- No external dependencies
+- Works offline
+- No server required
 
-## 🚀 Quick Start: Achieve Vault Nirvana
+## 🤝 Contributing
 
-1. **Export Your Vault**: Export your Bitwarden vault as a **JSON** file.
-2. **Launch the Tool**: goto **[bwdedup](https://bitwarden-valut-cleaner.pages.dev)** in any web browser.
-3. **Upload**: Click **"Upload JSON"** and select your exported file.
-4. **Configure Detection**:
-   - Select your primary matching criteria (e.g., "Name + Username + URI").
-   - Click **"Duplicate Detection Options"** and select **"Main Domain Only"** for the most effective cleanup, then click **"Save Options"**.
-5. **Detect & Review**: Click **"Detect duplicates"**. The table will highlight and automatically check the duplicates.
-6. **Cleanse**: Click **"Remove Selected"** to purge the marked duplicates.
-7. **Export**: Click **"Export Cleaned Vault"** to download your new, optimized JSON file.
+Pull requests are welcome! For major changes, please open an issue first to discuss what you'd like to change.
 
----
+## 📄 License
 
-**_Disclaimer_**: This is a community-driven tool and is not officially affiliated with or endorsed by Bitwarden. Use at your own discretion.
+MIT
+
+## ⚠️ Disclaimer
+
+- Always backup your Bitwarden vault before using this tool
+- All data processing happens locally in your browser
+- No data is sent to any server
+- Use at your own risk
+
+## 🐛 Issues
+
+If you encounter any problems, please open an issue on GitHub.

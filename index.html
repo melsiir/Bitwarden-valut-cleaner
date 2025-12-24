@@ -46,6 +46,9 @@
     :before {
       box-sizing: border-box;
       border: 0 solid;
+      -webkit-tap-highlight-color: transparent;
+      /* no highlight on tap*/
+      -moz-tap-highlight-color: transparent;
     }
 
     body {
@@ -211,14 +214,14 @@
     input[type="checkbox"]:checked::after {
       content: '';
       position: absolute;
-      left: 4px;
-      top: 2px;
-      width: 4px;
-      height: 8px;
-      border: solid;
-      border-color: var(--bg);
+      left: 50%;
+      top: 50%;
+      width: 6px;
+      height: 10px;
+      border: solid var(--bg);
       border-width: 0 2px 2px 0;
-      transform: rotate(45deg);
+      border-radius: 1px;
+      transform: translate(-50%, -50%) rotate(45deg);
     }
 
     input[type="checkbox"]:hover {
@@ -528,7 +531,7 @@
     .modal-field {
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      margin-bottom: 8px;
     }
 
     .modal-field-label {
@@ -537,6 +540,7 @@
       text-transform: uppercase;
       letter-spacing: 0.5px;
       font-weight: 600;
+      margin-bottom: 2px;
     }
 
     .modal-field-value {
@@ -552,11 +556,20 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      margin-top: 4px;
+      gap: 12px;
     }
 
     :root.light-mode .modal-field-value {
       background-color: var(--modal-header-footer-bg);
       border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    .field-value-text {
+      flex: 1;
+      word-break: break-word;
+      padding-right: 8px;
+      min-width: 0; /* Allows flex item to shrink below content size */
     }
 
     .modal-footer {
@@ -711,6 +724,66 @@
     .confirm-btn.danger:hover {
       background-color: rgba(255, 85, 102, 0.1);
       border-color: var(--danger);
+    }
+
+    .duplicate-group {
+      margin-bottom: 20px;
+      padding: 10px;
+      border: var(--borders);
+      border-radius: 6px;
+      background-color: var(--modal-header-footer-bg);
+    }
+
+    .duplicate-group h3 {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      color: var(--accent);
+    }
+
+    .duplicate-options {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .duplicate-field-row {
+      display: flex;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 2px;
+      padding: 2px 0;
+    }
+
+    .duplicate-field-label {
+      font-weight: 600;
+      color: var(--text);
+      min-width: 70px;
+      flex-shrink: 0;
+    }
+
+    .duplicate-field-value {
+      flex: 1;
+      word-break: break-word;
+    }
+
+    .duplicate-entry-summary {
+      padding: 8px 0;
+      border-bottom: var(--borders);
+      margin-bottom: 8px;
+    }
+
+    .password-preview {
+      font-family: monospace;
+      font-size: 12px;
+      letter-spacing: 1px;
+      cursor: pointer;
+      border-bottom: 1px dotted var(--muted);
+      user-select: text;
+    }
+
+    .password-preview:hover {
+      border-bottom: 1px solid var(--accent);
     }
 
     .edit-form {
@@ -1104,6 +1177,76 @@
       user-select: none;
     }
 
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 20px;
+      flex-shrink: 0;
+      /* Prevents flex container from shrinking toggle */
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 34px;
+      box-sizing: border-box;
+      /* Ensures proper sizing on all devices */
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+      box-sizing: border-box;
+      /* Ensures proper sizing on all devices */
+    }
+
+    input:checked+.slider {
+      background-color: var(--accent);
+    }
+
+    input:checked+.slider:before {
+      transform: translateX(20px);
+    }
+
+    /* Mobile-specific adjustments */
+    @media (max-width: 768px) {
+      .toggle-switch {
+        width: 40px;
+        height: 20px;
+      }
+
+      .slider:before {
+        height: 14px;
+        width: 14px;
+        left: 3px;
+        bottom: 3px;
+      }
+
+      input:checked+.slider:before {
+        transform: translateX(20px);
+      }
+    }
+
     .generate-btn {
       width: 100%;
       padding: 10px 14px;
@@ -1255,11 +1398,21 @@
       </select>
       <button class="btn" id="optionsBtn">Duplicate Detection Options</button>
       <button class="btn primary" id="detectBtn" disabled>Detect duplicates</button>
+      <button class="btn" id="detectEmailBtn" disabled>Detect Email Duplicates</button>
       <button class="btn" style="border-color:var(--danger);color:var(--danger);" id="removeSelectedBtn" disabled>Remove
         Selected</button>
-      <button class="btn primary" id="exportBtn" disabled>Export Cleaned Vault</button>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <select id="exportFormat" class="btn" style="flex: 1; min-width: 150px;">
+          <option value="bitwarden">Export as Bitwarden</option>
+          <option value="google">Export as Google CSV</option>
+        </select>
+        <button class="btn primary" id="exportBtn" disabled>Export</button>
+      </div>
+      <button class="btn" id="mergeBtn">Merge Another File</button>
       <button class="btn" style="border-color:var(--danger);color:var(--danger); display:none;" id="logoutBtn">Clear
         Session</button>
+      <!-- Hidden file input for merge functionality -->
+      <input type="file" id="mergeFileInput" accept=".json, .csv" style="display:none;">
     </div>
     <div class="main">
       <div style="display: flex; gap: 20px; align-items: center; padding: 0 5px;">
@@ -1288,8 +1441,40 @@
         <h2 id="modalTitle">Entry Details</h2>
         <button class="modal-close" id="modalClose">&times;</button>
       </div>
-      <div class="modal-body" id="modalBody"></div>
-      <div class="modal-footer">
+      <div class="modal-body" id="modalBody">
+        <div id="viewContent">
+          <!-- View content will be inserted here -->
+        </div>
+        <div id="editFormContainer" style="display: none;">
+          <form class="edit-form" id="editForm">
+            <div class="form-group">
+              <label class="form-label">Name</label>
+              <input type="text" id="editName" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Username</label>
+              <input type="text" id="editUsername" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Password</label>
+              <input type="password" id="editPassword" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">URI</label>
+              <input type="text" id="editUri" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Notes</label>
+              <textarea id="editNotes" class="form-textarea"></textarea>
+            </div>
+            <div class="edit-buttons">
+              <button type="button" class="modal-btn" id="editCancel">Cancel</button>
+              <button type="button" class="modal-btn primary" id="editSave">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div class="modal-footer" id="modalFooter">
         <button class="modal-btn" id="modalEditBtn">Edit Entry</button>
         <button class="modal-btn delete" id="modalDeleteBtn">Delete Entry</button>
       </div>
@@ -1306,43 +1491,6 @@
       <div class="confirm-buttons">
         <button class="confirm-btn" id="confirmCancel">Cancel</button>
         <button class="confirm-btn primary" id="confirmYes">Confirm</button>
-      </div>
-    </div>
-  </div>
-  <!-- Edit Modal -->
-  <div id="editModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2 id="editTitle">Edit Entry</h2>
-        <button class="modal-close" id="editClose">&times;</button>
-      </div>
-      <div class="modal-body">
-        <form class="edit-form" id="editForm">
-          <div class="form-group">
-            <label class="form-label">Name</label>
-            <input type="text" id="editName" class="form-input" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Username</label>
-            <input type="text" id="editUsername" class="form-input" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Password</label>
-            <input type="password" id="editPassword" class="form-input" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">URI</label>
-            <input type="text" id="editUri" class="form-input" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Notes</label>
-            <textarea id="editNotes" class="form-textarea"></textarea>
-          </div>
-          <div class="edit-buttons">
-            <button type="button" class="modal-btn" id="editCancel">Cancel</button>
-            <button type="button" class="modal-btn primary" id="editSave">Save Changes</button>
-          </div>
-        </form>
       </div>
     </div>
   </div>
@@ -1413,23 +1561,38 @@
           <label class="form-label">Options</label>
           <div class="options-group">
             <label class="option-checkbox">
-              <input type="checkbox" id="optUppercase" checked />
+              <label class="toggle-switch">
+                <input type="checkbox" id="optUppercase" checked />
+                <span class="slider"></span>
+              </label>
               <span class="option-label">Uppercase (A-Z)</span>
             </label>
             <label class="option-checkbox">
-              <input type="checkbox" id="optLowercase" checked />
+              <label class="toggle-switch">
+                <input type="checkbox" id="optLowercase" checked />
+                <span class="slider"></span>
+              </label>
               <span class="option-label">Lowercase (a-z)</span>
             </label>
             <label class="option-checkbox">
-              <input type="checkbox" id="optNumbers" checked />
+              <label class="toggle-switch">
+                <input type="checkbox" id="optNumbers" checked />
+                <span class="slider"></span>
+              </label>
               <span class="option-label">Numbers (0-9)</span>
             </label>
             <label class="option-checkbox">
-              <input type="checkbox" id="optSymbols" checked />
+              <label class="toggle-switch">
+                <input type="checkbox" id="optSymbols" checked />
+                <span class="slider"></span>
+              </label>
               <span class="option-label">Symbols (!@#$%^&*)</span>
             </label>
             <label class="option-checkbox">
-              <input type="checkbox" id="optAvoidAmbiguous" />
+              <label class="toggle-switch">
+                <input type="checkbox" id="optAvoidAmbiguous" />
+                <span class="slider"></span>
+              </label>
               <span class="option-label">Avoid Ambiguous Characters (l, 1, I, O, 0)</span>
             </label>
           </div>
@@ -1600,13 +1763,30 @@
           console.log("State restored from sessionStorage.");
         } catch (e) {
           console.error("Failed to restore state from sessionStorage:", e);
-          vaultStorage.clear();
+          // Don't clear all storage, just reset to default state
+          vault = null;
+          items = [];
+          filtered = [];
+          duplicates = new Set();
+          if (savedFileName) {
+            // If we have a saved filename, at least display it
+            document.getElementById("fileName").textContent = savedFileName;
+          } else {
+            document.getElementById("fileName").textContent = "No file loaded";
+          }
+          renderTable();
+          updateButtonStates();
         }
+      } else if (savedFileName) {
+        // If we don't have vault data but have a filename, show the filename
+        document.getElementById("fileName").textContent = savedFileName;
+        updateButtonStates();
       }
     }
     function updateButtonStates() {
       const isLoaded = items.length > 0;
       document.getElementById("detectBtn").disabled = !isLoaded;
+      document.getElementById("detectEmailBtn").disabled = !isLoaded;
       document.getElementById("removeSelectedBtn").disabled = !isLoaded;
       document.getElementById("exportBtn").disabled = !isLoaded;
       document.getElementById("logoutBtn").style.display = isLoaded ? 'block' : 'none';
@@ -1625,18 +1805,21 @@
     function showModal(item) {
       const modal = document.getElementById("entryModal");
       const modalTitle = document.getElementById("modalTitle");
-      const modalBody = document.getElementById("modalBody");
+      const viewContent = document.getElementById("viewContent");
       modalTitle.textContent = item.name || "Entry Details";
       currentOpenedItemId = item.id;
+
+      // Show the view content and hide the edit form
+      viewContent.style.display = "block";
+      document.getElementById("editFormContainer").style.display = "none";
+
       let fieldsHTML = "";
       const displayFields = [
-        {key: "id", label: "ID"},
         {key: "name", label: "Name"},
-        {key: "type", label: "Type"},
-        {key: "organizationId: null", label: "Organization ID"},
-        {key: "folderId: null", label: "Folder ID"},
-        {key: "favorite: false", label: "Favorite"},
-        {key: "notes", label: "Notes"}
+        {key: "notes", label: "Notes"},
+        {key: "organizationId", label: "Organization ID"},
+        {key: "folderId", label: "Folder ID"}
+        // Removed "favorite" field as it is unnecessary
       ];
       if (item.login) {
         displayFields.push(
@@ -1651,7 +1834,7 @@
           <div class="modal-field">
             <div class="modal-field-label">URI ${idx + 1}</div>
             <div class="modal-field-value" data-copy="${escapeHtml(displayValue)}">
-              ${displayValue}
+              <div class="field-value-text">${displayValue}</div>
               <button class="copy-btn" aria-label="Copy URI">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -1677,7 +1860,7 @@
         <div class="modal-field">
           <div class="modal-field-label">${field.label}</div>
           <div class="modal-field-value" data-copy="${escapeHtml(displayValue)}">
-            ${displayValue}
+            <div class="field-value-text">${displayValue}</div>
             <button class="copy-btn" aria-label="Copy ${field.label}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -1695,7 +1878,7 @@
       <div class="modal-field">
         <div class="modal-field-label">Custom Fields</div>
         <div class="modal-field-value" data-copy="${escapeHtml(displayValue)}">
-          ${displayValue}
+          <div class="field-value-text">${displayValue}</div>
           <button class="copy-btn" aria-label="Copy Custom Fields">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -1712,7 +1895,7 @@
       <div class="modal-field">
         <div class="modal-field-label">Attachments</div>
         <div class="modal-field-value" data-copy="${escapeHtml(displayValue)}">
-          ${displayValue}
+          <div class="field-value-text">${displayValue}</div>
           <button class="copy-btn" aria-label="Copy Attachments">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -1723,8 +1906,10 @@
       </div>
     `;
       }
-      modalBody.innerHTML = fieldsHTML || "<p>No additional data</p>";
-      modalBody.addEventListener('click', function (e) {
+      viewContent.innerHTML = fieldsHTML || "<p>No additional data</p>";
+
+      // Add event listener for copy buttons
+      viewContent.addEventListener('click', function (e) {
         if (e.target.closest('.copy-btn')) {
           e.preventDefault();
           const button = e.target.closest('.copy-btn');
@@ -1747,6 +1932,10 @@
           }, 600);
         }
       });
+
+      // Show the edit button in the footer
+      document.getElementById("modalFooter").style.display = "flex";
+
       modal.classList.add("active");
     }
     function closeModal() {
@@ -1790,6 +1979,8 @@
       const item = items.find(i => i.id === currentOpenedItemId);
       if (!item) return;
       editingItemId = currentOpenedItemId;
+
+      // Populate the edit form with current values
       document.getElementById("editName").value = item.name || "";
       const login = item.login || {};
       document.getElementById("editUsername").value = login.username || "";
@@ -1797,8 +1988,13 @@
       const uri = login.uris && item.login.uris.length ? item.login.uris[0].uri : "";
       document.getElementById("editUri").value = uri || "";
       document.getElementById("editNotes").value = item.notes || "";
-      closeModal();
-      document.getElementById("editModal").classList.add("active");
+
+      // Switch to edit form and hide view content
+      document.getElementById("viewContent").style.display = "none";
+      document.getElementById("editFormContainer").style.display = "block";
+
+      // Hide the edit and delete buttons in the footer while editing
+      document.getElementById("modalFooter").style.display = "none";
     }
     function showConfirmDialog(header, message, callback) {
       document.getElementById("confirmHeader").textContent = header;
@@ -1840,8 +2036,17 @@
         }
       }
       item.notes = document.getElementById("editNotes").value;
-      document.getElementById("editModal").classList.remove("active");
+
+      // Switch back to view mode
+      document.getElementById("editFormContainer").style.display = "none";
+      document.getElementById("viewContent").style.display = "block";
+
+      // Show the edit and delete buttons in the footer again
+      document.getElementById("modalFooter").style.display = "flex";
+
       editingItemId = null;
+      // Refresh the view content to show updated information
+      showModal(item);
       saveState();
       renderTable();
       showSuccessToast("Entry Updated", "The entry has been successfully updated");
@@ -1968,19 +2173,175 @@
       }
       for (const [key, list] of map.entries()) {
         if (list.length > 1) {
-          for (let i = 1; i < list.length; i++) {
-            duplicates.add(list[i].id);
+          // Sort by creation date to ensure we keep the newest entry
+          const sortedList = list.sort((a, b) => {
+            const dateA = new Date(a.creationDate || '1970-01-01');
+            const dateB = new Date(b.creationDate || '1970-01-01');
+            return dateB - dateA; // Sort in descending order (newest first)
+          });
+          // Mark all but the first (newest) as duplicates
+          for (let i = 1; i < sortedList.length; i++) {
+            duplicates.add(sortedList[i].id);
           }
         }
       }
       renderTable();
       saveState();
     }
+
+    function detectEmailDuplicates() {
+      // Group items by email first
+      const emailMap = new Map();
+      for (const item of items) {
+        const login = item.login || {};
+        const username = login.username || "";
+        // Only consider items that have a username (email)
+        if (username) {
+          if (!emailMap.has(username)) emailMap.set(username, []);
+          emailMap.get(username).push(item);
+        }
+      }
+
+      // Now for each email, group by URI matching according to selected criteria
+      const duplicateGroups = [];
+      for (const [email, itemList] of emailMap.entries()) {
+        if (itemList.length > 1) {
+          // Group by URI using the same logic as the standard duplicate detection
+          const uriGroups = new Map();
+          for (const item of itemList) {
+            const key = hashItem(item, document.getElementById("criteria").value);
+            if (!uriGroups.has(key)) uriGroups.set(key, []);
+            uriGroups.get(key).push(item);
+          }
+
+          // Check each URI group for different passwords
+          for (const [uriKey, group] of uriGroups.entries()) {
+            if (group.length > 1) {
+              // Check if passwords are different
+              const passwords = group.map(item => (item.login || {}).password || "");
+              const uniquePasswords = [...new Set(passwords)];
+              if (uniquePasswords.length > 1) {
+                // There are different passwords for the same email and URI criteria - these are the duplicates we want to detect
+                // Sort by creation date if available, so newer entries appear first
+                const sortedGroup = group.sort((a, b) => {
+                  const dateA = new Date(a.creationDate || '1970-01-01');
+                  const dateB = new Date(b.creationDate || '1970-01-01');
+                  return dateB - dateA; // Sort in descending order (newest first)
+                });
+                duplicateGroups.push(sortedGroup);
+              }
+            }
+          }
+        }
+      }
+
+      if (duplicateGroups.length > 0) {
+        showDuplicateSelectionModal(duplicateGroups);
+      } else {
+        showSuccessToast("No Duplicates Found", "No accounts with the same email but different passwords were found with matching URIs.");
+      }
+    }
+    function transferExtraDetails(sourceItem, targetItem) {
+      // Transfer OTP key if source has it and target doesn't
+      if (sourceItem.login && sourceItem.login.totp && (!targetItem.login || !targetItem.login.totp)) {
+        if (!targetItem.login) targetItem.login = {};
+        targetItem.login.totp = sourceItem.login.totp;
+      }
+
+      // Transfer notes if source has them and target doesn't
+      if (sourceItem.notes && !targetItem.notes) {
+        targetItem.notes = sourceItem.notes;
+      }
+
+      // Merge custom fields if both have them, otherwise transfer if source has and target doesn't
+      if (sourceItem.fields && sourceItem.fields.length > 0) {
+        if (!targetItem.fields || targetItem.fields.length === 0) {
+          // Target has no fields, simply transfer
+          targetItem.fields = [...sourceItem.fields];
+        } else {
+          // Both have fields, merge unique fields (avoid duplicates based on name)
+          const existingFieldNames = new Set(targetItem.fields.map(f => f.name));
+          const newFields = sourceItem.fields.filter(f => !existingFieldNames.has(f.name));
+          if (newFields.length > 0) {
+            targetItem.fields = [...targetItem.fields, ...newFields];
+          }
+        }
+      }
+
+      // Merge attachments if both have them, otherwise transfer if source has and target doesn't
+      if (sourceItem.attachments && sourceItem.attachments.length > 0) {
+        if (!targetItem.attachments || targetItem.attachments.length === 0) {
+          // Target has no attachments, simply transfer
+          targetItem.attachments = [...sourceItem.attachments];
+        } else {
+          // Both have attachments, merge unique attachments (avoid duplicates based on id)
+          const existingAttachmentIds = new Set(targetItem.attachments.map(a => a.id));
+          const newAttachments = sourceItem.attachments.filter(a => !existingAttachmentIds.has(a.id));
+          if (newAttachments.length > 0) {
+            targetItem.attachments = [...targetItem.attachments, ...newAttachments];
+          }
+        }
+      }
+
+      // Transfer other potentially important fields if target doesn't have them
+      if (sourceItem.reprompt && !targetItem.reprompt) {
+        targetItem.reprompt = sourceItem.reprompt;
+      }
+
+      if (sourceItem.organizationId && !targetItem.organizationId) {
+        targetItem.organizationId = sourceItem.organizationId;
+      }
+
+      if (sourceItem.folderId && !targetItem.folderId) {
+        targetItem.folderId = sourceItem.folderId;
+      }
+
+      // Skip merging URIs when transferring details since one URI is sufficient
+      // URIs are handled separately based on the criteria for duplicate detection
+
+      // If target doesn't have a password but source does, transfer it (for completeness)
+      if (sourceItem.login && sourceItem.login.password &&
+          (!targetItem.login || !targetItem.login.password)) {
+        if (!targetItem.login) targetItem.login = {};
+        targetItem.login.password = sourceItem.login.password;
+      }
+    }
+
     function removeSelected() {
       const checkboxes = document.querySelectorAll("input[type=checkbox][data-id]");
       const idsToRemove = new Set();
       checkboxes.forEach(cb => {if (cb.checked) idsToRemove.add(cb.dataset.id);});
       if (idsToRemove.size === 0) return;
+
+      // Group items by their duplicate criteria to handle data transfer
+      const mode = document.getElementById("criteria").value;
+      const map = new Map();
+      for (const item of items) {
+        const key = hashItem(item, mode);
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(item);
+      }
+
+      // For each group of duplicates, if any are being removed, transfer data to the kept item
+      for (const [key, list] of map.entries()) {
+        if (list.length > 1) {
+          // Sort by creation date to identify the newest (to keep) and older entries (to potentially remove)
+          const sortedList = list.sort((a, b) => {
+            const dateA = new Date(a.creationDate || '1970-01-01');
+            const dateB = new Date(b.creationDate || '1970-01-01');
+            return dateB - dateA; // Sort in descending order (newest first)
+          });
+
+          const itemToKeep = sortedList[0]; // Newest item is first after sorting
+          const itemsToRemoveFromGroup = sortedList.filter(item => idsToRemove.has(item.id));
+
+          // Transfer data from items being removed to the item being kept
+          for (const item of itemsToRemoveFromGroup) {
+            transferExtraDetails(item, itemToKeep);
+          }
+        }
+      }
+
       items = items.filter(x => !idsToRemove.has(x.id));
       filtered = [...items];
       duplicates.clear();
@@ -1990,19 +2351,99 @@
       showSuccessToast("Duplicates Removed", idsToRemove.size + " duplicate entry(ies) have been removed");
     }
     function exportVault() {
-      const cleaned = {...vault, items};
-      const blob = new Blob([JSON.stringify(cleaned, null, 2)], {type: "application/json"});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "bitwarden-cleaned.json";
-      a.click();
-      vaultStorage.clear();
+      const exportFormat = document.getElementById("exportFormat").value;
+
+      if (exportFormat === "google") {
+        // Export in Google Password Manager CSV format
+        const csvContent = exportToGoogleCsv();
+        const blob = new Blob([csvContent], {type: "text/csv"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "google-passwords.csv";
+        a.click();
+      } else {
+        // Export in Bitwarden JSON format (default)
+        const cleaned = {...vault, items};
+        const blob = new Blob([JSON.stringify(cleaned, null, 2)], {type: "application/json"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "bitwarden-cleaned.json";
+        a.click();
+      }
+      // vaultStorage.clear(); // Commenting out so user can continue working if needed
+    }
+
+    function exportToGoogleCsv() {
+      // Create CSV header
+      let csvContent = "name,login_url,username,password,note\n";
+
+      // Process each item in the vault
+      for (const item of items) {
+        const login = item.login || {};
+        const uri = login.uris && login.uris.length ? login.uris[0].uri : "";
+        const username = login.username || "";
+        const password = login.password || "";
+        const note = item.notes || "";
+        const name = item.name || "";
+
+        // Escape quotes and add to CSV
+        const row = [
+          escapeCsvField(name),
+          escapeCsvField(uri),
+          escapeCsvField(username),
+          escapeCsvField(password),
+          escapeCsvField(note)
+        ].join(',');
+
+        csvContent += row + '\n';
+      }
+
+      return csvContent;
+    }
+
+    function escapeCsvField(field) {
+      // Convert to string and escape quotes by doubling them
+      const str = String(field || "");
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return '"' + str.replace(/"/g, '""') + '"';
+      }
+      return str;
+    }
+
+    function mergeItems(newItems) {
+      // Create a set of existing IDs to avoid duplicates
+      const existingIds = new Set(items.map(item => item.id));
+
+      // Add unique items to the existing items array
+      let addedCount = 0;
+      for (const newItem of newItems) {
+        // Generate a new ID if the item already exists
+        if (existingIds.has(newItem.id)) {
+          newItem.id = crypto.randomUUID();
+        }
+        items.push(newItem);
+        addedCount++;
+      }
+
+      // Update the filtered array to include all items
+      filtered = [...items];
+
+      // Update the UI
+      renderTable();
+      saveState();
+
+      return addedCount;
     }
     document.getElementById("fileInput").addEventListener("change", async (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      vaultStorage.clear();
+
+      // Get the previous filename before clearing storage
+      const previousFileName = vaultStorage.getItem(STORAGE_KEY_FILENAME);
+      vaultStorage.clear(); // Clear previous vault data
+
       if (file.size > 50 * 1024 * 1024) {
         alert("Warning: File is larger than 50MB. Processing may be slow or crash the browser.");
       }
@@ -2032,11 +2473,17 @@
         filtered = [...items];
         duplicates.clear();
         renderTable();
-        saveState();
         document.getElementById("fileName").textContent = file.name;
+        saveState(); // Save the new state including the new filename
       } catch (e) {
         alert("Error loading file: " + (e.message || e));
-        resetFileInput();
+        // Restore previous filename if there was one, otherwise show default
+        if (previousFileName) {
+          document.getElementById("fileName").textContent = previousFileName;
+          // Don't save state since the load failed
+        } else {
+          resetFileInput();
+        }
       } finally {
         document.getElementById("fileInput").disabled = false;
         updateButtonStates();
@@ -2048,6 +2495,7 @@
     }
     document.getElementById("search").addEventListener("input", applySearch);
     document.getElementById("detectBtn").addEventListener("click", detectDuplicates);
+    document.getElementById("detectEmailBtn").addEventListener("click", detectEmailDuplicates);
     document.getElementById("removeSelectedBtn").addEventListener("click", removeSelected);
     document.getElementById("exportBtn").addEventListener("click", exportVault);
     document.getElementById("criteria").addEventListener("change", saveState);
@@ -2057,17 +2505,53 @@
     });
     document.getElementById("modalEditBtn").addEventListener("click", editEntry);
     document.getElementById("modalDeleteBtn").addEventListener("click", deleteEntry);
-    document.getElementById("editClose").addEventListener("click", () => {
-      document.getElementById("editModal").classList.remove("active");
-    });
-    document.getElementById("editModal").addEventListener("click", (e) => {
-      if (e.target.id === "editModal") document.getElementById("editModal").classList.remove("active");
-    });
     document.getElementById("editCancel").addEventListener("click", () => {
-      document.getElementById("editModal").classList.remove("active");
+      // Switch back to view mode instead of closing the modal
+      document.getElementById("editFormContainer").style.display = "none";
+      document.getElementById("viewContent").style.display = "block";
+
+      // Show the edit and delete buttons in the footer again
+      document.getElementById("modalFooter").style.display = "flex";
     });
     document.getElementById("editSave").addEventListener("click", saveEdit);
     document.getElementById("logoutBtn").addEventListener("click", logout);
+    document.getElementById("mergeBtn").addEventListener("click", () => {
+      document.getElementById("mergeFileInput").click();
+    });
+
+    document.getElementById("mergeFileInput").addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      if (file.size > 50 * 1024 * 1024) {
+        alert("Warning: File is larger than 50MB. Processing may be slow or crash the browser.");
+        return;
+      }
+
+      try {
+        const text = await file.text();
+        let newItems = [];
+
+        if (file.name.toLowerCase().endsWith('.json')) {
+          const importedVault = JSON.parse(text);
+          newItems = importedVault.items || [];
+        } else if (file.name.toLowerCase().endsWith('.csv')) {
+          newItems = parseGoogleCsv(text);
+        } else {
+          alert("Unsupported file type. Please upload a Bitwarden JSON or Google CSV file.");
+          return;
+        }
+
+        // Merge the new items with existing items
+        mergeItems(newItems);
+        showSuccessToast("File Merged", `Added ${newItems.length} entries from ${file.name}`);
+      } catch (e) {
+        alert("Error loading file: " + (e.message || e));
+      } finally {
+        document.getElementById("mergeFileInput").value = "";
+      }
+    });
+
     document.getElementById("selectAllBtn").addEventListener("click", () => {
       const checkboxes = document.querySelectorAll("input[type=checkbox][data-id]");
       const visibleCheckboxes = Array.from(checkboxes).filter(cb =>
@@ -2174,51 +2658,58 @@
       let score = 0;
 
       // --- Length-based scoring ---
-      // Reward length, but with diminishing returns for very long passwords of low diversity
-      // A simple linear increase up to a point, then slower increase
-      if (password.length > 0) {
-        score += Math.min(password.length * 4, 40); // Up to 40 points for length (at 10 chars)
+      // A 4 character password is extremely weak regardless of complexity
+      if (password.length < 6) {
+        // Very short passwords get very low scores
+        score = password.length * 2; // Max 10 points for 5 chars
+      } else if (password.length < 8) {
+        // 6-7 chars are still weak
+        score = 10 + (password.length - 5) * 3; // 16 max for 7 chars
+      } else if (password.length < 12) {
+        // 8-11 chars can be medium to strong depending on complexity
+        score = 20 + (password.length - 8) * 4; // 36 max for 11 chars
+      } else if (password.length < 16) {
+        // 12-15 chars are getting stronger
+        score = 36 + (password.length - 12) * 3; // 48 max for 15 chars
+      } else {
+        // 16+ chars get a good base score
+        score = 48 + Math.min((password.length - 16) * 2, 12); // Cap at 60 for very long passwords
       }
-      if (password.length > 10) {
-        score += (password.length - 10) * 2; // Slower increase after 10 chars (2 points per char)
-      }
-      // Cap length bonus to prevent extremely long low-diversity passwords from scoring too high
-      score = Math.min(score, 80); // Maximum contribution from length is capped
 
       // --- Diversity-based scoring ---
       let diversityCount = 0;
       if (hasUppercase && /[A-Z]/.test(password)) {
-        score += 5; // Bonus for having uppercase (if selected)
+        score += 4; // Bonus for having uppercase (if selected)
         diversityCount++;
       }
       if (hasLowercase && /[a-z]/.test(password)) {
-        score += 5; // Bonus for having lowercase (if selected)
+        score += 4; // Bonus for having lowercase (if selected)
         diversityCount++;
       }
       if (hasNumbers && /[0-9]/.test(password)) {
-        score += 5; // Bonus for having numbers (if selected)
+        score += 4; // Bonus for having numbers (if selected)
         diversityCount++;
       }
       if (hasSymbols && /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password)) {
-        score += 5; // Bonus for having symbols (if selected)
+        score += 4; // Bonus for having symbols (if selected)
         diversityCount++;
       }
 
-      // --- Diversity multiplier or bonus ---
-      // Having more diverse character types should increase the potential maximum score
-      // This rewards complexity beyond just length.
-      // A password with 4 types can reach higher levels than one with only 1 type.
-      // Add a bonus based on the number of diverse types found
-      score += diversityCount * 5; // Up to 20 bonus points for diversity
+      // Add bonus for diversity, but only if the password is of reasonable length
+      if (password.length >= 8) {
+        score += diversityCount * 3; // Bonus for diversity in longer passwords
+      } else {
+        // For short passwords, diversity helps but can't make up for length
+        score += diversityCount * 2;
+      }
 
       // --- Final calculation and mapping ---
       // Define score thresholds for each strength level
-      // These thresholds are chosen to reflect the balance between length and diversity
-      if (score < 20) return 0; // Very Weak (e.g., short, single type)
-      if (score < 40) return 1; // Weak (e.g., longer single type, or short diverse)
-      if (score < 60) return 2; // Medium (e.g., good length + 1-2 types, or medium length + 3 types)
-      if (score < 80) return 3; // Strong (e.g., good length + 3-4 types, or very long + 2 types)
-      return 4;                 // Very Strong (e.g., long + all 4 types)
+      if (score < 10) return 0; // Very Weak (e.g., 4 chars or less, regardless of complexity)
+      if (score < 20) return 1; // Weak (e.g., 5-6 chars, minimal complexity)
+      if (score < 30) return 2; // Medium (e.g., 7-8 chars with some complexity)
+      if (score < 40) return 3; // Strong (e.g., 10+ chars with good complexity)
+      return 4;                 // Very Strong (e.g., 12+ chars with excellent complexity)
     }
 
     function updatePasswordStrength(password) {
@@ -2226,21 +2717,30 @@
       const strengthText = document.getElementById('strengthText');
       const strengthLevels = ['Very Weak', 'Weak', 'Medium', 'Strong', 'Very Strong'];
       const progress = document.getElementById('strengthProgress');
+
+      // Calculate percentage based on the strength level (0-4)
       const percent = (strength / 4) * 100;
 
       progress.style.width = percent + '%';
       progress.className = 'strength-progress';
 
-      if (strength === 0 || strength === 1) {
+      if (strength === 0) {
         strengthText.className = 'strength-text weak';
-        strengthText.textContent = strengthLevels[strength];
+        strengthText.textContent = strengthLevels[0];
+      } else if (strength === 1) {
+        strengthText.className = 'strength-text weak';
+        strengthText.textContent = strengthLevels[1];
       } else if (strength === 2) {
         strengthText.className = 'strength-text medium';
         strengthText.textContent = strengthLevels[2];
         progress.classList.add('medium');
-      } else if (strength === 3 || strength === 4) {
+      } else if (strength === 3) {
         strengthText.className = 'strength-text strong';
-        strengthText.textContent = strengthLevels[strength];
+        strengthText.textContent = strengthLevels[3];
+        progress.classList.add('strong');
+      } else if (strength === 4) {
+        strengthText.className = 'strength-text strong';
+        strengthText.textContent = strengthLevels[4];
         progress.classList.add('strong');
       }
     }
@@ -2353,6 +2853,201 @@
       });
     });
     loadState();
+  </script>
+  <!-- Duplicate Selection Modal -->
+  <div id="duplicateSelectionModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Email Duplicates Found</h2>
+        <button class="modal-close" id="duplicateSelectionClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>You have multiple accounts with the same email but different passwords. Please select which one(s) to keep:</p>
+        <div id="duplicateEntriesContainer">
+          <!-- Duplicate entries will be dynamically added here -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn" id="duplicateSelectionCancel">Cancel</button>
+        <button class="modal-btn primary" id="duplicateSelectionSave">Keep Selected</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Add event listeners for the new modal
+    document.getElementById("duplicateSelectionClose").addEventListener("click", () => {
+      document.getElementById("duplicateSelectionModal").classList.remove("active");
+    });
+
+    document.getElementById("duplicateSelectionCancel").addEventListener("click", () => {
+      document.getElementById("duplicateSelectionModal").classList.remove("active");
+    });
+
+    document.getElementById("duplicateSelectionSave").addEventListener("click", () => {
+      saveDuplicateSelections();
+    });
+
+    document.getElementById("duplicateSelectionModal").addEventListener("click", (e) => {
+      if (e.target.id === "duplicateSelectionModal") {
+        document.getElementById("duplicateSelectionModal").classList.remove("active");
+      }
+    });
+
+    // Function to handle duplicate selections
+    function showDuplicateSelectionModal(duplicateGroups) {
+      const container = document.getElementById("duplicateEntriesContainer");
+      container.innerHTML = '';
+
+      duplicateGroups.forEach((group, index) => {
+        const email = group[0].login.username;
+        const groupDiv = document.createElement("div");
+        groupDiv.className = "duplicate-group";
+        groupDiv.innerHTML = `
+          <h3>Email: ${email}</h3>
+          <div class="duplicate-options">
+            ${group.map((item, idx) => {
+              const password = item.login.password || '';
+              const displayPassword = password ? (password.length > 30 ? password.substring(0, 30) + '...' : password) : 'No Password';
+              // Format the creation date for better readability
+              let creationDate = 'Unknown';
+              if (item.creationDate) {
+                const date = new Date(item.creationDate);
+                // Format as: YYYY-MM-DD HH:MM:SS
+                creationDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+              }
+              return `
+                <label class="option-card">
+                  <input type="checkbox" class="duplicate-checkbox" name="duplicateGroup${index}" value="${item.id}" checked>
+                  <div class="duplicate-entry-summary">
+                    <div style="font-weight: 600; margin-bottom: 4px;">Entry ${idx + 1}: ${item.name || 'No Name'} ${idx === 0 ? '(Newest)' : ''}</div>
+                    <div class="duplicate-field-row">
+                      <span class="duplicate-field-label">Password:</span>
+                      <span class="password-preview duplicate-field-value" data-full-password="${password}" title="${password}">${displayPassword}</span>
+                    </div>
+                    <div class="duplicate-field-row">
+                      <span class="duplicate-field-label">URI:</span>
+                      <span class="duplicate-field-value">${(item.login.uris && item.login.uris[0] ? item.login.uris[0].uri : 'No URI')}</span>
+                    </div>
+                    <div class="duplicate-field-row">
+                      <span class="duplicate-field-label">Created:</span>
+                      <span class="duplicate-field-value">${creationDate}</span>
+                    </div>
+                  </div>
+                </label>
+              `;
+            }).join('')}
+          </div>
+        `;
+        container.appendChild(groupDiv);
+      });
+
+      // Add click event listeners to password previews
+      document.querySelectorAll('.password-preview').forEach(preview => {
+        preview.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          const fullPassword = this.getAttribute('data-full-password');
+          if (fullPassword) {
+            // Toggle between showing full password and masked version
+            if (this.textContent.includes('...') || this.textContent === 'No Password') {
+              this.textContent = fullPassword;
+              this.title = fullPassword;
+            } else {
+              const displayText = fullPassword.length > 30 ? fullPassword.substring(0, 30) + '...' : fullPassword;
+              this.textContent = displayText;
+              this.title = fullPassword;
+            }
+          }
+        });
+      });
+
+      document.getElementById("duplicateSelectionModal").classList.add("active");
+    }
+
+    function saveDuplicateSelections() {
+      // Get all selected items (checked checkboxes)
+      const selectedIds = new Set();
+      const allCheckboxes = document.querySelectorAll(".duplicate-checkbox");
+
+      allCheckboxes.forEach(checkbox => {
+        if (checkbox.checked) {
+          selectedIds.add(checkbox.value);
+        }
+      });
+
+      // Get all duplicate IDs (all checkboxes regardless of checked state)
+      const allDuplicateIds = new Set();
+      allCheckboxes.forEach(checkbox => {
+        allDuplicateIds.add(checkbox.value);
+      });
+
+      // Find IDs that were NOT selected (unchecked)
+      const unselectedIds = new Set();
+      allDuplicateIds.forEach(id => {
+        if (!selectedIds.has(id)) {
+          unselectedIds.add(id);
+        }
+      });
+
+      // Group items by email to handle data transfer
+      const emailMap = new Map();
+      for (const item of items) {
+        if (allDuplicateIds.has(item.id)) { // Only consider items in this duplicate group
+          const login = item.login || {};
+          const username = login.username || "";
+          if (!emailMap.has(username)) emailMap.set(username, []);
+          emailMap.get(username).push(item);
+        }
+      }
+
+      // For each email group, transfer data from unselected items to the selected one
+      for (const [email, list] of emailMap.entries()) {
+        if (list.length > 1) {
+          // Sort by creation date to identify the newest selected (to keep) and older entries (to remove)
+          const sortedList = list.sort((a, b) => {
+            const dateA = new Date(a.creationDate || '1970-01-01');
+            const dateB = new Date(b.creationDate || '1970-01-01');
+            return dateB - dateA; // Sort in descending order (newest first)
+          });
+
+          // Find the first selected item to keep (preferably the newest)
+          let itemToKeep = null;
+          for (const item of sortedList) {
+            if (selectedIds.has(item.id)) {
+              itemToKeep = item;
+              break;
+            }
+          }
+
+          // If no selected item was found in the group, use the newest available
+          if (!itemToKeep && sortedList.length > 0) {
+            itemToKeep = sortedList[0];
+          }
+
+          // Transfer data from unselected items to the item being kept
+          if (itemToKeep) {
+            for (const item of list) {
+              if (unselectedIds.has(item.id)) {
+                transferExtraDetails(item, itemToKeep);
+              }
+            }
+          }
+        }
+      }
+
+      // Remove the unselected duplicates from items and filtered arrays
+      items = items.filter(item => !unselectedIds.has(item.id));
+      filtered = filtered.filter(item => !unselectedIds.has(item.id));
+
+      // Clear duplicates set since we're handling them specially
+      duplicates.clear();
+
+      document.getElementById("duplicateSelectionModal").classList.remove("active");
+      saveState();
+      renderTable();
+      showSuccessToast("Duplicates Processed", `Removed ${unselectedIds.size} unselected entries`);
+    }
   </script>
 </body>
 
