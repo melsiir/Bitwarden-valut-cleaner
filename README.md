@@ -15,7 +15,7 @@ A simple, privacy-focused tool to clean up duplicate entries in your Bitwarden v
 
 ## 🚀 Usage
 
-1. Open `index.html` in your browser (Chrome, Firefox, Safari, Edge all work)
+1. Goto **[bitwarden-valut-cleaner](https://bitwarden-valut-cleaner.pages.dev)** or open `index.html` in your browser (Chrome, Firefox, Safari, Edge all work)
 2. Click "Upload JSON" and select your Bitwarden export file
 3. Choose your duplicate detection criteria from the dropdown:
    - `Name + Username + URI` - Matches entries with same name, username, and URI
@@ -40,9 +40,6 @@ This is a single-file application with no build process required:
 - Works offline
 - No server required
 
-## 🤝 Contributing
-
-Pull requests are welcome! For major changes, please open an issue first to discuss what you'd like to change.
 
 ## 📄 License
 
@@ -52,6 +49,7 @@ MIT
 
 - Always backup your Bitwarden vault before using this tool
 - All data processing happens locally in your browser
+- After processing your vault file and import it back Delete it from you device immediately
 - No data is sent to any server
 - Use at your own risk
 
