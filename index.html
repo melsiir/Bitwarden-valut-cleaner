@@ -1677,18 +1677,21 @@
       <th>Name</th>
       <th>Username</th>
       <th>URI</th>
+      <th>Type</th>
     </tr>
   `;
       let rows = "";
       for (const item of filtered) {
         const login = item.login || {};
         const uri = login.uris && login.uris.length ? login.uris[0].uri : "";
+        const typeLabel = getItemTypeLabel(item.type);
         rows += `
     <tr class="entry-row" data-id="${item.id}" style="cursor: pointer;">
       <td><input type="checkbox" data-id="${item.id}" ${duplicates.has(item.id) ? "checked" : ""}></td>
       <td class="urlName">${item.name || ""}</td>
       <td>${login.username || ""}</td>
       <td>${uri || ""}</td>
+      <td>${typeLabel}</td>
     </tr>
   `;
       }
@@ -1697,6 +1700,17 @@
       animateCount("dupCount", duplicates.size);
       updateButtonStates();
       attachRowClickListeners();
+    }
+
+    // Helper function to get human-readable type label
+    function getItemTypeLabel(type) {
+      switch(type) {
+        case 1: return "Login";
+        case 2: return "Secure Note";
+        case 3: return "Card";
+        case 4: return "Identity";
+        default: return "Unknown";
+      }
     }
     if (typeof crypto.randomUUID !== 'function') {
       crypto.randomUUID = function () {
@@ -1818,10 +1832,13 @@
         {key: "name", label: "Name"},
         {key: "notes", label: "Notes"},
         {key: "organizationId", label: "Organization ID"},
-        {key: "folderId", label: "Folder ID"}
+        {key: "folderId", label: "Folder ID"},
+        {key: "type", label: "Type", customDisplay: (value) => getItemTypeLabel(value)}
         // Removed "favorite" field as it is unnecessary
       ];
-      if (item.login) {
+
+      // Handle different item types
+      if (item.type === 1 && item.login) { // Login
         displayFields.push(
           {key: "login.username", label: "Username", parent: "login"},
           {key: "login.password", label: "Password", parent: "login"},
@@ -1846,7 +1863,40 @@
         `;
           });
         }
+      } else if (item.type === 2 && item.secureNote) { // Secure Note
+        displayFields.push(
+          {key: "secureNote.type", label: "Note Type", parent: "secureNote"}
+        );
+      } else if (item.type === 3 && item.card) { // Card
+        displayFields.push(
+          {key: "card.cardholderName", label: "Cardholder Name", parent: "card"},
+          {key: "card.brand", label: "Brand", parent: "card"},
+          {key: "card.number", label: "Number", parent: "card"},
+          {key: "card.expMonth", label: "Expiry Month", parent: "card"},
+          {key: "card.expYear", label: "Expiry Year", parent: "card"},
+          {key: "card.code", label: "Security Code", parent: "card"}
+        );
+      } else if (item.type === 4 && item.identity) { // Identity
+        displayFields.push(
+          {key: "identity.title", label: "Title", parent: "identity"},
+          {key: "identity.firstName", label: "First Name", parent: "identity"},
+          {key: "identity.middleName", label: "Middle Name", parent: "identity"},
+          {key: "identity.lastName", label: "Last Name", parent: "identity"},
+          {key: "identity.address1", label: "Address 1", parent: "identity"},
+          {key: "identity.address2", label: "Address 2", parent: "identity"},
+          {key: "identity.address3", label: "Address 3", parent: "identity"},
+          {key: "identity.city", label: "City", parent: "identity"},
+          {key: "identity.state", label: "State", parent: "identity"},
+          {key: "identity.postalCode", label: "Postal Code", parent: "identity"},
+          {key: "identity.country", label: "Country", parent: "identity"},
+          {key: "identity.phone", label: "Phone", parent: "identity"},
+          {key: "identity.email", label: "Email", parent: "identity"},
+          {key: "identity.ssn", label: "SSN", parent: "identity"},
+          {key: "identity.licenseNumber", label: "License Number", parent: "identity"},
+          {key: "identity.passportNumber", label: "Passport Number", parent: "identity"}
+        );
       }
+
       displayFields.forEach(field => {
         let value;
         if (field.parent) {
@@ -1855,7 +1905,12 @@
           value = item[field.key];
         }
         if (value !== null && value !== undefined && value !== "") {
-          const displayValue = typeof value === "object" ? JSON.stringify(value, null, 2) : String(value);
+          let displayValue;
+          if (field.customDisplay) {
+            displayValue = field.customDisplay(value);
+          } else {
+            displayValue = typeof value === "object" ? JSON.stringify(value, null, 2) : String(value);
+          }
           fieldsHTML += `
         <div class="modal-field">
           <div class="modal-field-label">${field.label}</div>
@@ -1985,7 +2040,7 @@
       const login = item.login || {};
       document.getElementById("editUsername").value = login.username || "";
       document.getElementById("editPassword").value = login.password || "";
-      const uri = login.uris && item.login.uris.length ? item.login.uris[0].uri : "";
+      const uri = login.uris && login.uris.length ? login.uris[0].uri : "";
       document.getElementById("editUri").value = uri || "";
       document.getElementById("editNotes").value = item.notes || "";
 
@@ -2055,24 +2110,39 @@
       const values = [];
       let inQuotes = false;
       let current = '';
-      for (let i = 0; i < line.length; i++) {
+      let i = 0;
+
+      while (i < line.length) {
         const char = line[i];
-        const nextChar = line[i + 1];
-        if (char === '"' && !inQuotes) {
-          inQuotes = true;
-        } else if (char === '"' && nextChar === '"') {
-          current += '"';
-          i++;
-        } else if (char === '"' && inQuotes) {
-          inQuotes = false;
+
+        if (char === '"') {
+          if (!inQuotes) {
+            // Start of quoted field
+            inQuotes = true;
+          } else {
+            // Inside quoted field - check if this is an escaped quote
+            if (i + 1 < line.length && line[i + 1] === '"') {
+              // This is an escaped quote, add a literal quote
+              current += '"';
+              i++; // Skip the next quote
+            } else {
+              // End of quoted field
+              inQuotes = false;
+            }
+          }
         } else if (char === ',' && !inQuotes) {
-          values.push(current.trim());
+          // Unquoted comma - end of field
+          values.push(current);
           current = '';
         } else {
+          // Regular character
           current += char;
         }
+        i++;
       }
-      values.push(current.trim());
+
+      // Add the last field
+      values.push(current);
       return values;
     }
     function parseGoogleCsv(csvText) {
@@ -2084,11 +2154,13 @@
         const values = parseCsvLine(lines[i]);
         if (values.length < 5) continue;
         const [name, url, username, password, note] = values;
-        result.push({
+
+        // Create a Bitwarden-compatible item structure
+        const item = {
           id: crypto.randomUUID(),
           organizationId: null,
           folderId: null,
-          type: 1,
+          type: 1, // Login type
           reprompt: 0,
           name: name || "",
           notes: note || "",
@@ -2098,8 +2170,15 @@
             password: password || "",
             totp: null,
             uris: url ? [{uri: url, match: null}] : []
-          }
-        });
+          },
+          passwordHistory: [],
+          creationDate: new Date().toISOString(),
+          revisionDate: new Date().toISOString(),
+          fields: [],
+          collectionIds: null
+        };
+
+        result.push(item);
       }
       return result;
     }
@@ -2132,35 +2211,94 @@
       saveState();
     }
     function hashItem(item, mode) {
-      const login = item.login || {};
-      const uri = login.uris && login.uris.length ? login.uris[0].uri : "";
-      const uriKey = getUriKey(uri, uriMode);
-      const username = login.username || "";
-      const name = item.name || "";
-      if (mode === "name+username+uri") return name + "|" + username + "|" + uriKey;
-      if (mode === "name+uri") return name + "|" + uriKey;
-      if (mode === "full") return JSON.stringify(item);
+      // Handle different item types
+      if (item.type === 1 && item.login) { // Login
+        const login = item.login;
+        const uri = login.uris && login.uris.length ? login.uris[0].uri : "";
+        const uriKey = getUriKey(uri, uriMode);
+        const username = login.username || "";
+        const name = item.name || "";
+        if (mode === "name+username+uri") return name + "|" + username + "|" + uriKey;
+        if (mode === "name+uri") return name + "|" + uriKey;
+        if (mode === "full") return JSON.stringify(item);
+      } else if (item.type === 2 && item.secureNote) { // Secure Note
+        const name = item.name || "";
+        if (mode === "name+username+uri") return name + "||"; // No username or URI for secure notes
+        if (mode === "name+uri") return name + "|";
+        if (mode === "full") return JSON.stringify(item);
+      } else if (item.type === 3 && item.card) { // Card
+        const name = item.name || "";
+        if (mode === "name+username+uri") return name + "||"; // No username or URI for cards
+        if (mode === "name+uri") return name + "|";
+        if (mode === "full") return JSON.stringify(item);
+      } else if (item.type === 4 && item.identity) { // Identity
+        const name = item.name || "";
+        if (mode === "name+username+uri") return name + "||"; // No username or URI for identities
+        if (mode === "name+uri") return name + "|";
+        if (mode === "full") return JSON.stringify(item);
+      }
       return "";
     }
     function getUriKey(uri, mode) {
       if (!uri) return "";
-      try {
-        const url = new URL(uri);
-        let hostname = url.hostname;
-        if (mode === 'hostname') {
-          return hostname;
-        }
-        if (mode === 'mainDomain') {
-          const parts = hostname.split('.');
-          if (parts.length > 2) {
-            return parts.slice(-2).join('.');
+
+      // Normalize different URI schemes to handle cross-platform compatibility
+      let normalizedUri = uri.toLowerCase();
+
+      // Handle different Android app URI schemes and normalize them
+      if (normalizedUri.startsWith('androidapp://')) {
+        // Convert androidapp:// to android:// for consistency
+        normalizedUri = 'android://' + normalizedUri.substring(13); // Remove 'androidapp://' and add 'android://'
+      } else if (normalizedUri.startsWith('android://')) {
+        // Already in the correct format
+        normalizedUri = normalizedUri;
+      } else if (normalizedUri.startsWith('http://') || normalizedUri.startsWith('https://')) {
+        // For web URIs, normalize the hostname
+        try {
+          const url = new URL(normalizedUri);
+          let hostname = url.hostname.toLowerCase();
+
+          // Remove 'www.' prefix if present
+          if (hostname.startsWith('www.')) {
+            hostname = hostname.substring(4);
           }
-          return hostname;
+
+          if (mode === 'hostname') {
+            return hostname;
+          }
+          if (mode === 'mainDomain') {
+            const parts = hostname.split('.');
+            if (parts.length > 2) {
+              // Handle special domains like co.uk, com.au, etc.
+              if (parts.length >= 3) {
+                const lastPart = parts[parts.length - 1];
+                const secondLastPart = parts[parts.length - 2];
+
+                // Common 2-part TLDs
+                if (['co', 'com', 'net', 'org', 'gov', 'edu'].includes(secondLastPart) &&
+                    ['uk', 'au', 'cn', 'jp', 'in', 'br', 'de', 'fr', 'it', 'es'].includes(lastPart)) {
+                  return parts.slice(-3).join('.');
+                }
+              }
+              return parts.slice(-2).join('.');
+            }
+            return hostname;
+          }
+          // For full URI mode, return the normalized web URI
+          return normalizedUri;
+        } catch (e) {
+          // If URL parsing fails, return the original URI in lowercase
+          return normalizedUri;
         }
-        return uri;
-      } catch (e) {
-        return uri;
       }
+
+      // For app URIs (android://), return as normalized
+      if (mode === 'hostname' || mode === 'mainDomain') {
+        // For app URIs, we can't extract hostname or domain, so return as-is
+        return normalizedUri;
+      }
+
+      return normalizedUri;
     }
     function detectDuplicates() {
       duplicates.clear();
@@ -2190,15 +2328,18 @@
     }
 
     function detectEmailDuplicates() {
-      // Group items by email first
+      // Group items by email first - only for login items (type 1)
       const emailMap = new Map();
       for (const item of items) {
-        const login = item.login || {};
-        const username = login.username || "";
-        // Only consider items that have a username (email)
-        if (username) {
-          if (!emailMap.has(username)) emailMap.set(username, []);
-          emailMap.get(username).push(item);
+        // Only process login items (type 1)
+        if (item.type === 1 && item.login) {
+          const login = item.login;
+          const username = login.username || "";
+          // Only consider items that have a username (email)
+          if (username) {
+            if (!emailMap.has(username)) emailMap.set(username, []);
+            emailMap.get(username).push(item);
+          }
         }
       }
 
@@ -2364,8 +2505,32 @@
         a.click();
       } else {
         // Export in Bitwarden JSON format (default)
-        const cleaned = {...vault, items};
-        const blob = new Blob([JSON.stringify(cleaned, null, 2)], {type: "application/json"});
+        // Create a proper Bitwarden vault structure with all necessary fields
+        const bitwardenVault = {
+          encrypted: vault.encrypted !== undefined ? vault.encrypted : false,
+          folders: vault.folders || [],
+          items: items.map(item => {
+            // Create a clean copy of the item to avoid reference issues
+            const cleanItem = {...item};
+
+            // Ensure all required fields are present
+            if (cleanItem.passwordHistory === undefined) cleanItem.passwordHistory = [];
+            if (cleanItem.fields === undefined) cleanItem.fields = [];
+            if (cleanItem.collectionIds === undefined) cleanItem.collectionIds = null;
+
+            // Only include login object for type 1 items
+            if (cleanItem.type === 1 && cleanItem.login) {
+              // Ensure login has proper structure
+              if (!cleanItem.login.uris) cleanItem.login.uris = [];
+              if (!cleanItem.login.fido2Credentials) cleanItem.login.fido2Credentials = [];
+            }
+
+            return cleanItem;
+          }),
+          version: vault.version || 3
+        };
+
+        const blob = new Blob([JSON.stringify(bitwardenVault, null, 2)], {type: "application/json"});
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -2376,28 +2541,40 @@
     }
 
     function exportToGoogleCsv() {
-      // Create CSV header
-      let csvContent = "name,login_url,username,password,note\n";
+      // Create CSV header - Google's format is name,url,username,password,note
+      let csvContent = "name,url,username,password,note\n";
 
       // Process each item in the vault
       for (const item of items) {
-        const login = item.login || {};
-        const uri = login.uris && login.uris.length ? login.uris[0].uri : "";
-        const username = login.username || "";
-        const password = login.password || "";
-        const note = item.notes || "";
-        const name = item.name || "";
+        // For Google export, we only export login items (type 1)
+        if (item.type === 1) {
+          const login = item.login || {};
+          let uri = login.uris && login.uris.length ? login.uris[0].uri : "";
+          const username = login.username || "";
+          const password = login.password || "";
+          const note = item.notes || "";
+          const name = item.name || "";
 
-        // Escape quotes and add to CSV
-        const row = [
-          escapeCsvField(name),
-          escapeCsvField(uri),
-          escapeCsvField(username),
-          escapeCsvField(password),
-          escapeCsvField(note)
-        ].join(',');
+          // Normalize URI for Google export - Google doesn't recognize androidapp://
+          // Convert androidapp:// to android:// for consistency
+          if (uri.toLowerCase().startsWith('androidapp://')) {
+            uri = 'android://' + uri.substring(13);
+          }
 
-        csvContent += row + '\n';
+          // For Google Password Manager, export all URI types (web and app URIs)
+          // Google supports both web URLs (http/https) and app URIs (android://)
+          // But we normalize them to the standard format (android:// instead of androidapp://)
+          // Escape quotes and add to CSV
+          const row = [
+            escapeCsvField(name),
+            escapeCsvField(uri),
+            escapeCsvField(username),
+            escapeCsvField(password),
+            escapeCsvField(note)
+          ].join(',');
+
+          csvContent += row + '\n';
+        }
       }
 
       return csvContent;
@@ -2457,6 +2634,9 @@
         if (file.name.toLowerCase().endsWith('.json')) {
           vault = JSON.parse(text);
           items = vault.items || [];
+
+          // Ensure all items have proper structure for compatibility
+          items = items.map(item => normalizeBitwardenItem(item));
         } else if (file.name.toLowerCase().endsWith('.csv')) {
           items = parseGoogleCsv(text);
           vault = {
@@ -2492,6 +2672,79 @@
     function resetFileInput() {
       document.getElementById("fileName").textContent = "No file loaded";
       document.getElementById("fileInput").value = "";
+    }
+
+    // Normalize Bitwarden item to ensure all required fields are present
+    function normalizeBitwardenItem(item) {
+      // Ensure required fields exist
+      if (item.type === undefined) item.type = 1; // Default to login
+      if (item.reprompt === undefined) item.reprompt = 0;
+      if (item.favorite === undefined) item.favorite = false;
+      if (item.passwordHistory === undefined) item.passwordHistory = [];
+      if (item.fields === undefined) item.fields = [];
+      if (item.collectionIds === undefined) item.collectionIds = null;
+
+      // Ensure dates exist
+      if (!item.creationDate) item.creationDate = new Date().toISOString();
+      if (!item.revisionDate) item.revisionDate = new Date().toISOString();
+
+      // Ensure login object exists for login types
+      if (item.type === 1 && !item.login) {
+        item.login = {
+          uris: [],
+          username: "",
+          password: "",
+          totp: null
+        };
+      }
+
+      // Ensure secureNote object exists for secure note types
+      if (item.type === 2 && !item.secureNote) {
+        item.secureNote = {
+          type: 0
+        };
+      }
+
+      // Ensure card object exists for card types
+      if (item.type === 3 && !item.card) {
+        item.card = {
+          cardholderName: "",
+          brand: "",
+          number: "",
+          expMonth: "",
+          expYear: "",
+          code: ""
+        };
+      }
+
+      // Ensure identity object exists for identity types
+      if (item.type === 4 && !item.identity) {
+        item.identity = {
+          title: "",
+          firstName: "",
+          middleName: "",
+          lastName: "",
+          address1: "",
+          address2: "",
+          address3: "",
+          city: "",
+          state: "",
+          postalCode: "",
+          country: "",
+          phone: "",
+          email: "",
+          ssn: "",
+          licenseNumber: "",
+          passportNumber: ""
+        };
+      }
+
+      // Ensure id exists
+      if (!item.id) {
+        item.id = crypto.randomUUID();
+      }
+
+      return item;
     }
     document.getElementById("search").addEventListener("input", applySearch);
     document.getElementById("detectBtn").addEventListener("click", detectDuplicates);
@@ -2535,6 +2788,9 @@
         if (file.name.toLowerCase().endsWith('.json')) {
           const importedVault = JSON.parse(text);
           newItems = importedVault.items || [];
+
+          // Normalize all items to ensure compatibility
+          newItems = newItems.map(item => normalizeBitwardenItem(item));
         } else if (file.name.toLowerCase().endsWith('.csv')) {
           newItems = parseGoogleCsv(text);
         } else {
